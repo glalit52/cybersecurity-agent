@@ -7,7 +7,7 @@
 
 import { Playbook, PlaybookContext, PlaybookResult } from "../base.ts";
 import { db } from "../../db.ts";
-import { getConnector } from "../../connectors/base.ts";
+import { getEnabledConnector } from "../../connector-configs.ts";
 
 export const exposedSecretResponsePlaybook: Playbook = {
   id: "exposed-secret-response",
@@ -18,9 +18,9 @@ export const exposedSecretResponsePlaybook: Playbook = {
   trigger: "event",
 
   async run(ctx: PlaybookContext): Promise<PlaybookResult> {
-    const connector = getConnector("github-security");
+    const connector = await getEnabledConnector(ctx.organizationId, "github-security");
     if (!connector) {
-      return { summary: "github-security connector not registered.", data: {} };
+      return { summary: "github-security is not enabled for this org (see /cyber connectors).", data: {} };
     }
 
     const signals = (await connector.fetchSignals(ctx.organizationId)).filter((s) =>

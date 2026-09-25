@@ -5,7 +5,7 @@
 
 import { Playbook, PlaybookContext, PlaybookResult } from "../base.ts";
 import { db } from "../../db.ts";
-import { getConnector } from "../../connectors/base.ts";
+import { getEnabledConnector } from "../../connector-configs.ts";
 
 const CONFIG_FINDING_PREFIXES = ["s3.", "sg.", "ebs.", "rds.", "config."];
 
@@ -18,9 +18,9 @@ export const cloudMisconfigurationSweepPlaybook: Playbook = {
   trigger: "scheduled",
 
   async run(ctx: PlaybookContext): Promise<PlaybookResult> {
-    const connector = getConnector("aws-security-hub");
+    const connector = await getEnabledConnector(ctx.organizationId, "aws-security-hub");
     if (!connector) {
-      return { summary: "aws-security-hub connector not registered.", data: {} };
+      return { summary: "aws-security-hub is not enabled for this org (see /cyber connectors).", data: {} };
     }
 
     const signals = await connector.fetchSignals(ctx.organizationId);

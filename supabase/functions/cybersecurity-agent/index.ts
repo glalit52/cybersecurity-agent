@@ -8,8 +8,8 @@
 import { db } from "../_shared/db.ts";
 import { auditEntry, writeAuditLog } from "../_shared/audit.ts";
 import { createApprovalRequest } from "../_shared/approvals.ts";
-import { getConnector, listConnectors } from "../_shared/connectors/base.ts";
 import "../_shared/connectors/register-all.ts";
+import { getEnabledConnector, getEnabledConnectors } from "../_shared/connector-configs.ts";
 import { listPlaybooks, runPlaybook } from "../_shared/playbooks/base.ts";
 import "../_shared/playbooks/register-all.ts";
 import { relatedNodes, semanticSearchByText } from "../_shared/evidence-graph-core.ts";
@@ -35,9 +35,10 @@ interface CyberAgentRequest {
 // ---------------------------------------------------------------------
 
 async function detect(orgId: string, scope: string): Promise<SecurityFinding[]> {
-  const connectors = scope === "all"
-    ? listConnectors()
-    : listConnectors().filter((c) => c.id.includes(scope));
+  // Only connectors this org has actually enabled (see connector-configs.ts)
+  // — a fresh org with nothing configured gets zero findings, not mock data
+  // from every connector that happens to be registered in this process.
+  const connectors = await getEnabledConnectors(orgId, scope === "all" ? undefined : (id) => id.includes(scope));
 
   const results: SecurityFinding[] = [];
   for (const connector of connectors) {
@@ -228,14 +229,20 @@ export async function executeRemediation(
 
   if (!action) throw new Error(`Remediation action ${actionId} not found`);
 
-  const connector = getConnector(action.security_findings.connector);
+  // Re-check enablement at execution time, not just at detection time — an
+  // org could have disabled the connector between when the finding was
+  // detected and when this remediation was approved.
+  const connector = await getEnabledConnector(orgId, action.security_findings.connector);
   const result = connector
     ? await connector.executeAction(orgId, {
       actionType,
       resourceRef: action.security_findings.resource_ref,
       parameters: {},
     })
-    : { success: false, message: `No connector registered for ${action.security_findings.connector}` };
+    : {
+      success: false,
+      message: `Connector "${action.security_findings.connector}" is not enabled for this org — cannot execute.`,
+    };
 
   await db()
     .from("remediation_actions")

@@ -6,7 +6,7 @@
 
 import { Playbook, PlaybookContext, PlaybookResult } from "../base.ts";
 import { db } from "../../db.ts";
-import { getConnector } from "../../connectors/base.ts";
+import { getEnabledConnector } from "../../connector-configs.ts";
 
 export const soc2EvidenceFreshnessSweepPlaybook: Playbook = {
   id: "soc2-evidence-freshness-sweep",
@@ -34,7 +34,9 @@ export const soc2EvidenceFreshnessSweepPlaybook: Playbook = {
     const escalated: string[] = [];
 
     for (const node of stale) {
-      const connector = node.source_connector ? getConnector(node.source_connector) : undefined;
+      const connector = node.source_connector
+        ? await getEnabledConnector(ctx.organizationId, node.source_connector)
+        : null;
       if (connector) {
         const result = await connector.verifyFact(ctx.organizationId, node.title);
         if (result.verified) {

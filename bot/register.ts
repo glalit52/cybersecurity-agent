@@ -6,6 +6,7 @@
 
 import { registerCyberCommands } from "./commands/cyber.ts";
 import { registerComplianceCommands } from "./commands/compliance.ts";
+import { registerConnectorCommands } from "./commands/connectors.ts";
 import type { CommandHandler } from "./router-types.ts";
 
 export function registerEnterpriseTrustAgentCommands(
@@ -13,4 +14,5 @@ export function registerEnterpriseTrustAgentCommands(
 ) {
   registerCyberCommands(registerCommand);
   registerComplianceCommands(registerCommand);
+  registerConnectorCommands(registerCommand);
 }

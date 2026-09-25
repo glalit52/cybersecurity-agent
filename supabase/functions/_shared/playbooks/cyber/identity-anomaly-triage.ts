@@ -6,7 +6,7 @@
 
 import { Playbook, PlaybookContext, PlaybookResult } from "../base.ts";
 import { db } from "../../db.ts";
-import { getConnector } from "../../connectors/base.ts";
+import { getEnabledConnector } from "../../connector-configs.ts";
 
 export const identityAnomalyTriagePlaybook: Playbook = {
   id: "identity-anomaly-triage",
@@ -17,9 +17,9 @@ export const identityAnomalyTriagePlaybook: Playbook = {
   trigger: "event",
 
   async run(ctx: PlaybookContext): Promise<PlaybookResult> {
-    const connector = getConnector("microsoft-sentinel");
+    const connector = await getEnabledConnector(ctx.organizationId, "microsoft-sentinel");
     if (!connector) {
-      return { summary: "microsoft-sentinel connector not registered.", data: {} };
+      return { summary: "microsoft-sentinel is not enabled for this org (see /cyber connectors).", data: {} };
     }
 
     const signals = await connector.fetchSignals(ctx.organizationId);

@@ -5,7 +5,7 @@
 
 import { Playbook, PlaybookContext, PlaybookResult } from "../base.ts";
 import { db } from "../../db.ts";
-import { listConnectors } from "../../connectors/base.ts";
+import { getEnabledConnectors } from "../../connector-configs.ts";
 
 const DEFAULT_DORMANCY_DAYS = 90;
 
@@ -22,9 +22,9 @@ export const dormantPrivilegedAccessPlaybook: Playbook = {
 
     // Identity/infra connectors (AWS IAM via aws-security-hub, Okta/Azure AD
     // once those connectors are ported into this ConnectorAdapter shape)
-    // surface unused-access signals. Filter to identity-shaped findings.
-    const identityConnectors = listConnectors().filter((c) =>
-      ["aws-security-hub", "okta", "azure-ad"].some((k) => c.id.includes(k))
+    // surface unused-access signals. Only ones this org has enabled.
+    const identityConnectors = await getEnabledConnectors(ctx.organizationId, (id) =>
+      ["aws-security-hub", "okta", "azure-ad"].some((k) => id.includes(k))
     );
 
     let findingsCreated = 0;

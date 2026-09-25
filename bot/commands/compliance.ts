@@ -1,7 +1,11 @@
 // Slack/Teams command handlers for the Compliance / Audit / Governance /
 // RFP Agent. See cyber.ts for the router-integration assumptions.
 
-import type { CommandContext, CommandHandler } from "../router-types.ts";
+import type { CommandAttachment, CommandContext, CommandHandler } from "../router-types.ts";
+import { downloadSlackFile } from "../adapters/slack.ts";
+import { downloadTeamsAttachment } from "../adapters/teams.ts";
+import { extractText, DocumentExtractionUnsupportedError } from "../document-extraction.ts";
+import { splitIntoQuestions } from "../question-extraction.ts";
 
 const COMPLIANCE_AGENT_URL = Deno.env.get("COMPLIANCE_AGENT_URL") ??
   "http://localhost:54321/functions/v1/compliance-agent";
@@ -41,15 +45,65 @@ const answer: CommandHandler = async (ctx) => {
   return ctx.reply(`${result.answerText}\n\n_Confidence: ${result.confidence}_`);
 };
 
-const rfpUpload: CommandHandler = async (ctx) => {
-  // TODO(bot): pull the uploaded file from the Slack/Teams event payload,
-  // parse it into discrete questions (reuse the existing Document
-  // Processing Agent's extraction pipeline), then call create-request with
-  // requestType "rfp" and the parsed questions.
-  return ctx.reply(
-    "📄 RFP upload received. TODO: wire this to the existing Document Processing Agent's " +
-      "extraction pipeline to split the file into individual questions.",
+async function downloadAttachment(
+  ctx: CommandContext,
+  attachment: CommandAttachment,
+): Promise<{ bytes: Uint8Array; contentType: string; filename: string }> {
+  // TODO(bot): resolve the per-org bot token via the platform's existing
+  // workspace/tenant-linking (Bot Foundation) instead of one shared env
+  // var — a single token can't serve multiple orgs' Slack workspaces or
+  // Teams tenants in production, but is enough to exercise the download
+  // path against a real file in a single-org pilot.
+  if (ctx.channel === "slack") {
+    const botToken = Deno.env.get("SLACK_BOT_TOKEN");
+    if (!botToken) throw new Error("SLACK_BOT_TOKEN is not configured — cannot download the attached file.");
+    return downloadSlackFile(attachment.downloadRef, botToken);
+  }
+  const botToken = Deno.env.get("TEAMS_BOT_TOKEN");
+  return downloadTeamsAttachment(
+    { name: attachment.filename, contentType: attachment.contentType ?? "application/octet-stream", contentUrl: attachment.downloadRef },
+    botToken,
   );
+}
+
+const rfpUpload: CommandHandler = async (ctx) => {
+  const attachment = ctx.attachments?.[0];
+  if (!attachment) {
+    return ctx.reply("Attach a file (.txt/.csv, or a questionnaire your platform can extract) with this command.");
+  }
+
+  let file: { bytes: Uint8Array; contentType: string; filename: string };
+  try {
+    file = await downloadAttachment(ctx, attachment);
+  } catch (err) {
+    return ctx.reply(`❌ Could not download "${attachment.filename}": ${err instanceof Error ? err.message : err}`);
+  }
+
+  let extracted: string;
+  try {
+    extracted = (await extractText(file.bytes, file.contentType, file.filename)).text;
+  } catch (err) {
+    if (err instanceof DocumentExtractionUnsupportedError) {
+      return ctx.reply(`⚠️ ${err.message}`);
+    }
+    throw err;
+  }
+
+  const questions = splitIntoQuestions(extracted);
+  if (questions.length === 0) {
+    return ctx.reply(`Extracted "${attachment.filename}" but found no question-shaped lines in it.`);
+  }
+
+  await ctx.reply(`📄 Parsed ${questions.length} question(s) from "${attachment.filename}" — answering from the evidence graph now...`);
+
+  const result = await callAgent("run-playbook", ctx, {
+    playbookId: "rfp-response-orchestrator",
+    title: attachment.filename,
+    requestType: "rfp",
+    questions,
+  });
+  if (result.error) return ctx.reply(`❌ ${result.error}`);
+  return ctx.reply(`✅ ${result.summary}`);
 };
 
 const status: CommandHandler = async (ctx) => {

@@ -7,7 +7,7 @@
 
 import { Playbook, PlaybookContext, PlaybookResult } from "../base.ts";
 import { db } from "../../db.ts";
-import { getConnector } from "../../connectors/base.ts";
+import { getEnabledConnector } from "../../connector-configs.ts";
 
 export const internalAuditControlTestingPlaybook: Playbook = {
   id: "internal-audit-control-testing",
@@ -45,9 +45,17 @@ export const internalAuditControlTestingPlaybook: Playbook = {
     const results: Array<{ system: string; pass: boolean; detail: string }> = [];
 
     for (const system of systems ?? []) {
-      const connector = system.source_connector ? getConnector(system.source_connector) : undefined;
+      const connector = system.source_connector
+        ? await getEnabledConnector(ctx.organizationId, system.source_connector)
+        : null;
       if (!connector) {
-        results.push({ system: system.title, pass: false, detail: "No connector available to test this system." });
+        results.push({
+          system: system.title,
+          pass: false,
+          detail: system.source_connector
+            ? `Connector "${system.source_connector}" is not enabled for this org — cannot test live.`
+            : "No connector recorded for this system.",
+        });
         continue;
       }
       const verification = await connector.verifyFact(ctx.organizationId, control.title);

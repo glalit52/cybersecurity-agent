@@ -134,7 +134,9 @@ export type AuditEventType =
   | "remediation.executed"
   | "compliance.answered"
   | "compliance.flagged_gap"
-  | "evidence.updated";
+  | "evidence.updated"
+  | "connector.enabled"
+  | "connector.disabled";
 
 export interface AuditLogEntry {
   organizationId: string;

@@ -246,24 +246,55 @@ All connectors implement one shared interface (`ConnectorAdapter` in
 `supabase/functions/_shared/connectors/base.ts`) so adding a new one never
 touches agent logic.
 
-## 9. What's actually implemented in this repo vs. stubbed
+## 9. Connector onboarding: per-org enablement
+
+A connector being *registered* (its code loaded into an Edge Function
+process, see `connectors/register-all.ts`) is not the same as an org
+having *enabled* it. Early versions of this scaffold conflated the two —
+every playbook ran against every registered connector's mock data
+regardless of org, which isn't correct multi-tenant behavior: a fresh org
+with nothing configured should get zero findings, not simulated findings
+from six connectors it never turned on.
+
+`_shared/connector-configs.ts` is the boundary: every place that runs a
+connector against org data goes through `getEnabledConnector(orgId, id)` or
+`getEnabledConnectors(orgId, filter)` instead of calling
+`connectors/base.ts`'s `getConnector()`/`listConnectors()` directly. A
+`connector-onboarding` Edge Function exposes `list` / `enable` / `disable`,
+and `/cyber connectors`, `/cyber connect <id> [key=value ...]`,
+`/cyber disconnect <id>` (aliased under `/compliance` too, since
+enablement is per-org, not per-agent) drive it from Slack/Teams. Enabling
+without a `credentialRef` is allowed — the connector runs but returns
+stub data, which keeps the "exercisable without setup" property from
+earlier versions while making the explicit-enablement step realistic
+instead of implicit.
+
+## 10. What's actually implemented in this repo vs. stubbed
 
 This repo had zero commits when this work started — it is not the live
 Anvita codebase. What's included now:
 
-- Real: schema, connector interface contract, agent orchestration logic
-  (detect/investigate/remediate/monitor/report and
-  ingest/retrieve/verify/generate/attach/flag), all 16 playbooks' domain
-  logic, approval-lock logic, audit logging, Slack/Teams command router
-  extension, RBAC role definitions, **and the reasoning layer**: semantic
-  retrieval over the evidence graph (real `text-embedding-3-large`
-  embeddings + pgvector cosine search), AI-drafted compliance answers with
-  inline citations, and AI-drafted investigation narratives for security
-  findings (`_shared/ai-gateway.ts`, `_shared/evidence-graph-core.ts`).
+- Real: schema, connector interface contract, per-org connector enablement
+  (§9), agent orchestration logic (detect/investigate/remediate/monitor/
+  report and ingest/retrieve/verify/generate/attach/flag), all 16
+  playbooks' domain logic, approval-lock logic, audit logging, Slack/Teams
+  command router extension with real Slack Events API + Bot Framework
+  Activity payload parsing and file-attachment download (`bot/adapters/`),
+  RFP question extraction from uploaded files (`bot/document-extraction.ts`,
+  `bot/question-extraction.ts`), RBAC role definitions, **and the reasoning
+  layer**: semantic retrieval over the evidence graph (real
+  `text-embedding-3-large` embeddings + pgvector cosine search), AI-drafted
+  compliance answers with inline citations, and AI-drafted investigation
+  narratives for security findings (`_shared/ai-gateway.ts`,
+  `_shared/evidence-graph-core.ts`).
 - Stubbed (clearly marked `TODO(connector)`): the actual outbound HTTP calls
-  to AWS/Okta/GitHub/SIEM/etc. Each stub returns realistic shaped mock data
-  so the pipeline is exercisable end-to-end today; swapping in a live call
-  is a single function body, not a redesign.
+  to AWS/Okta/GitHub/SIEM/etc. once a connector is enabled, and PDF/DOCX
+  text extraction for RFP uploads (intentionally deferred to the existing
+  Document Processing Agent's OCR pipeline rather than reimplemented here
+  — plain text/CSV uploads work today). Each connector stub returns
+  realistic shaped mock data once enabled, so the pipeline is exercisable
+  end-to-end today; swapping in a live call is a single function body, not
+  a redesign.
 - The reasoning layer degrades, not breaks, without a credential: every
   AI Gateway call site (retrieval, answer drafting, investigation
   narratives, contract clause confirmation) catches
@@ -272,7 +303,7 @@ Anvita codebase. What's included now:
   pipeline still produces useful (if less polished) output before
   `AI_GATEWAY_API_KEY` is configured, rather than erroring out.
 
-## 10. What we need from you to go live
+## 11. What we need from you to go live
 
 Same shape as your existing client-dependencies list:
 
@@ -286,14 +317,20 @@ Same shape as your existing client-dependencies list:
   whatever your existing "AI Gateway ... via Anvita AI" abstraction already
   is, via `AI_GATEWAY_URL`, rather than hitting OpenAI directly.
 - Slack app + MS Teams app credentials for the bot layer, if different from
-  the ones already provisioned for Bot Foundation.
-- Per-connector credentials as each is turned on (AWS IAM role/OIDC for
-  Security Hub, GitHub App/PAT with security-events scope, SIEM webhook
-  secret, etc.) — none of these are needed to review or merge this scaffold.
+  the ones already provisioned for Bot Foundation, plus however Bot
+  Foundation already maps a Slack `team_id` / Teams `tenantId` to an
+  Anvita `organization_id` — `bot/adapters/{slack,teams}.ts` take this as
+  an injected `resolveOrganizationId()` function rather than hardcoding a
+  lookup, since Bot Foundation already solved this.
+- Per-connector credentials as each is turned on via `/cyber connect`
+  (AWS IAM role/OIDC for Security Hub, GitHub App/PAT with security-events
+  scope, SIEM webhook secret, etc.) — none of these are needed to review or
+  merge this scaffold; enabling a connector without one just returns stub
+  data (§9).
 - Confirmation on which vuln scanner / EDR / SIEM you actually run, so P2
   connectors target the real tool instead of a generic placeholder.
 
-## 11. Suggested milestones (same shape as your existing WBS)
+## 12. Suggested milestones (same shape as your existing WBS)
 
 | Milestone | Scope |
 |---|---|

@@ -38,6 +38,8 @@ supabase/functions/
   _shared/audit.ts                audit log writer (new event types only)
   _shared/approvals.ts            generalized approve/reject-with-lock workflow,
                                    lifted from the existing Access Provisioning Agent
+  _shared/connector-configs.ts    per-org connector enablement — the boundary between
+                                   "connector code exists" and "this org turned it on"
   _shared/ai-gateway.ts           AI Gateway client: embeddings + completions,
                                    throws AiGatewayUnavailableError when unconfigured
                                    so callers can fall back gracefully
@@ -53,33 +55,50 @@ supabase/functions/
                                    + list-playbooks/run-playbook dispatch
   evidence-graph/                 evidence node/edge CRUD + semantic search + graph walk
   playbook-scheduler/             pg_cron entrypoint that fans out to due scheduled_playbooks rows
+  connector-onboarding/           list/enable/disable connectors per org (TECHNICAL_SPEC.md §9)
 bot/
-  router-types.ts                 minimal contract assumed of the existing bot router
+  router-types.ts                 minimal contract assumed of the existing bot router;
+                                   CommandContext now carries attachments[] for file uploads
+  adapters/slack.ts               real Slack Events API + slash-command payload parsing,
+                                   file download via files.info + url_private_download
+  adapters/teams.ts               real Bot Framework Activity parsing, attachment download
+  document-extraction.ts          plain text/CSV extraction (real); PDF/DOCX deferred to the
+                                   existing Document Processing Agent's OCR pipeline
+  question-extraction.ts          splits extracted text into discrete questions
+                                   (numbered lists, bullets, interrogative sentences)
   commands/cyber.ts               /cyber scan|findings|investigate|remediate|report|playbooks|run
   commands/compliance.ts          /compliance answer|rfp upload|status|playbooks|run, /audit evidence
-  register.ts                     single entrypoint to wire both command sets in
+  commands/connectors.ts          /cyber|compliance connectors|connect|disconnect
+  register.ts                     single entrypoint to wire all command sets in
 ```
 
 ## What's real vs. stubbed right now
 
-Real: schema + RLS, connector interface contract, both agents' full
-workflow logic, all 16 playbooks' domain logic (severity/criticality
-scoring, freshness checks, repeat-offender detection, framework gap
-matching, live control testing), the generalized approval-lock mechanism,
-audit logging, evidence-graph traversal, playbook run-history recording,
-Slack/Teams command parsing and replies, **and the reasoning layer**:
-real `text-embedding-3-large` embeddings + pgvector semantic search,
-AI-drafted compliance answers with inline citations, AI-drafted
-investigation narratives, and AI-confirmed contract clause gaps
-(`_shared/ai-gateway.ts`). Every reasoning call falls back to keyword
-search / plain evidence listings if no AI Gateway credential is
-configured, so the pipeline degrades rather than breaks without one.
+Real: schema + RLS, connector interface contract, **per-org connector
+enablement** (a fresh org gets zero findings until it explicitly enables a
+connector via `/cyber connect`, not mock data from everything registered),
+both agents' full workflow logic, all 16 playbooks' domain logic
+(severity/criticality scoring, freshness checks, repeat-offender
+detection, framework gap matching, live control testing), the generalized
+approval-lock mechanism, audit logging, evidence-graph traversal, playbook
+run-history recording, **the reasoning layer** (real
+`text-embedding-3-large` embeddings + pgvector semantic search, AI-drafted
+compliance answers with inline citations, AI-drafted investigation
+narratives, AI-confirmed contract clause gaps — `_shared/ai-gateway.ts`,
+falls back to keyword search / plain evidence listings without a
+credential rather than breaking), and **real Slack/Teams event parsing**:
+actual Events API / Bot Framework Activity payload shapes, file-attachment
+download, and RFP question extraction from uploaded text/CSV files
+(`bot/adapters/`, `bot/document-extraction.ts`, `bot/question-extraction.ts`).
 
-Stubbed (marked `TODO(connector)` / `TODO(bot)` in the code): outbound
-calls to AWS/GitHub/SIEM/etc., and pulling uploaded files out of the real
-Slack/Teams event payload. Each connector stub returns realistic shaped
-mock data so every pipeline (`scan → investigate → remediate` and
-`ingest → answer`) runs end-to-end today against mock signals.
+Stubbed (marked `TODO(connector)` in the code): the actual outbound HTTP
+calls to AWS/GitHub/SIEM/etc. once a connector is enabled, and PDF/DOCX
+extraction for RFP uploads — deliberately deferred to the existing
+Document Processing Agent's OCR pipeline rather than reimplemented here
+(plain text/CSV uploads work today, real extraction, no stub). Each
+connector stub returns realistic shaped mock data once enabled, so every
+pipeline (`scan → investigate → remediate` and `ingest → answer`) still
+runs end-to-end today against mock signals.
 
 ## Running locally
 
@@ -93,6 +112,7 @@ supabase functions serve cybersecurity-agent
 supabase functions serve compliance-agent
 supabase functions serve evidence-graph
 supabase functions serve playbook-scheduler
+supabase functions serve connector-onboarding
 ```
 
 Required env vars for the functions (set via `supabase secrets set` or
@@ -103,13 +123,18 @@ SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 
 # Reasoning layer (optional — falls back to keyword search / plain
-# evidence listings if unset, see TECHNICAL_SPEC.md §9):
+# evidence listings if unset, see TECHNICAL_SPEC.md §10):
 AI_GATEWAY_API_KEY            # or OPENAI_API_KEY
 AI_GATEWAY_URL                # defaults to https://api.openai.com/v1;
                                # point this at the platform's existing AI
                                # Gateway once merged
 AI_GATEWAY_CHAT_MODEL         # defaults to "gpt-5"
 AI_GATEWAY_EMBEDDING_MODEL    # defaults to "text-embedding-3-large"
+
+# Bot file-download (optional — only needed for /compliance rfp upload;
+# see TECHNICAL_SPEC.md §11 on why this is one shared token for now):
+SLACK_BOT_TOKEN
+TEAMS_BOT_TOKEN
 ```
 
 The schema assumes an existing `organizations` and `profiles` table from
@@ -121,6 +146,16 @@ already uses.
 
 ## Exercising the pipeline without real credentials
 
+Connectors are per-org opt-in (see TECHNICAL_SPEC.md §9), so enable one first:
+
+```bash
+curl -X POST http://localhost:54321/functions/v1/connector-onboarding \
+  -H 'content-type: application/json' \
+  -d '{"action":"enable","organizationId":"<org-uuid>","actorId":null,"params":{"connectorId":"aws-security-hub"}}'
+```
+
+Then scan:
+
 ```bash
 curl -X POST http://localhost:54321/functions/v1/cybersecurity-agent \
   -H 'content-type: application/json' \
@@ -128,7 +163,8 @@ curl -X POST http://localhost:54321/functions/v1/cybersecurity-agent \
 ```
 
 This runs against the mock connector data in
-`supabase/functions/_shared/connectors/*.ts` and persists real
+`supabase/functions/_shared/connectors/*.ts` (no `credentialRef` was set
+above, so it returns stub data rather than calling AWS) and persists real
 `security_findings` rows — useful for testing the full detect → investigate
 → remediate → approval flow before any vendor API key exists.
 
@@ -142,7 +178,7 @@ curl -X POST http://localhost:54321/functions/v1/cybersecurity-agent \
 
 ## Next steps to go live
 
-See `TECHNICAL_SPEC.md` §10 for exactly what's needed from you (repo
+See `TECHNICAL_SPEC.md` §11 for exactly what's needed from you (repo
 placement, Supabase project access, Slack/Teams app credentials, per-
 connector API credentials, and confirmation of which vuln
 scanner/EDR/SIEM you actually run).

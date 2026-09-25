@@ -14,7 +14,7 @@
 import { db } from "./db.ts";
 import { auditEntry, writeAuditLog } from "./audit.ts";
 import { createApprovalRequest } from "./approvals.ts";
-import { getConnector } from "./connectors/base.ts";
+import { getEnabledConnector } from "./connector-configs.ts";
 import { semanticSearchByText, isStale } from "./evidence-graph-core.ts";
 import { generateCompletion, AiGatewayUnavailableError } from "./ai-gateway.ts";
 import { ApprovalRequest, ComplianceQuestion, ComplianceRequestType, EvidenceNode } from "./types.ts";
@@ -94,7 +94,11 @@ export async function answerQuestion(
       candidates
         .filter((n) => n.sourceConnector)
         .map(async (n) => {
-          const connector = getConnector(n.sourceConnector!);
+          // Re-checks enablement, not just that the evidence node was once
+          // authored from this connector — an org may have disabled it
+          // since, in which case we trust the stored evidence as-is
+          // instead of silently skipping verification.
+          const connector = await getEnabledConnector(orgId, n.sourceConnector!);
           if (!connector) return null;
           const result = await connector.verifyFact(orgId, question.question_text);
           return { node: n, ...result };

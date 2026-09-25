@@ -7,7 +7,7 @@
 
 import { Playbook, PlaybookContext, PlaybookResult } from "../base.ts";
 import { db } from "../../db.ts";
-import { getConnector } from "../../connectors/base.ts";
+import { getEnabledConnector } from "../../connector-configs.ts";
 import { createApprovalRequest } from "../../approvals.ts";
 
 const CONTAINMENT_WORTHY_SEVERITIES = new Set(["high", "critical"]);
@@ -21,9 +21,9 @@ export const endpointThreatContainmentPlaybook: Playbook = {
   trigger: "event",
 
   async run(ctx: PlaybookContext): Promise<PlaybookResult> {
-    const connector = getConnector("crowdstrike-falcon");
+    const connector = await getEnabledConnector(ctx.organizationId, "crowdstrike-falcon");
     if (!connector) {
-      return { summary: "crowdstrike-falcon connector not registered.", data: {} };
+      return { summary: "crowdstrike-falcon is not enabled for this org (see /cyber connectors).", data: {} };
     }
 
     const signals = (await connector.fetchSignals(ctx.organizationId)).filter((s) =>
