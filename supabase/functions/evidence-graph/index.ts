@@ -6,16 +6,9 @@
 // scaffold accepts a pre-computed `embedding` field so it can be exercised
 // without live OpenAI/Gemini credentials.
 
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { db } from "../_shared/db.ts";
 import { auditEntry, writeAuditLog } from "../_shared/audit.ts";
 import { EvidenceNode, EvidenceNodeType } from "../_shared/types.ts";
-
-function db(): SupabaseClient {
-  return createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-  );
-}
 
 interface UpsertNodeRequest {
   organizationId: string;

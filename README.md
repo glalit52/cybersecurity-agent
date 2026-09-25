@@ -22,11 +22,14 @@ alongside the existing ones, bot commands registered with the real router).
 ## Layout
 
 ```
-TECHNICAL_SPEC.md                 architecture, data model, workflows, rollout plan
+TECHNICAL_SPEC.md                 architecture, data model, workflows, playbook catalog, rollout plan
 supabase/migrations/              schema (evidence graph, findings, remediation,
-                                   compliance requests/questions, connectors, approvals)
+                                   compliance requests/questions, connectors, approvals,
+                                   playbook run history + scheduling)
 supabase/functions/
+  _shared/db.ts                   shared Supabase client factory
   _shared/types.ts                shared TS types matching the schema
+  _shared/frameworks.ts           reference control catalog (SOC 2/ISO 27001/NIST CSF) for gap analysis
   _shared/connectors/base.ts      ConnectorAdapter interface + registry
   _shared/connectors/*.ts         AWS Security Hub, GitHub Advanced Security,
                                    Microsoft Sentinel, CrowdStrike Falcon,
@@ -35,21 +38,31 @@ supabase/functions/
   _shared/audit.ts                audit log writer (new event types only)
   _shared/approvals.ts            generalized approve/reject-with-lock workflow,
                                    lifted from the existing Access Provisioning Agent
-  cybersecurity-agent/            detect / investigate / remediate / monitor / report
-  compliance-agent/                ingest / retrieve / verify / generate / attach & flag
+  _shared/compliance-core.ts      ingest / retrieve / verify / generate / attach & flag core logic
+  _shared/playbooks/base.ts       Playbook interface + registry + run-history recording
+  _shared/playbooks/cyber/*.ts    8 Cybersecurity playbooks (see TECHNICAL_SPEC.md §4)
+  _shared/playbooks/compliance/*.ts  8 Compliance playbooks (see TECHNICAL_SPEC.md §4)
+  cybersecurity-agent/            core actions (scan/findings/investigate/remediate/report)
+                                   + list-playbooks/run-playbook dispatch
+  compliance-agent/               core actions (create-request/answer/status/route-approval)
+                                   + list-playbooks/run-playbook dispatch
   evidence-graph/                 evidence node/edge CRUD + semantic search + graph walk
+  playbook-scheduler/             pg_cron entrypoint that fans out to due scheduled_playbooks rows
 bot/
   router-types.ts                 minimal contract assumed of the existing bot router
-  commands/cyber.ts               /cyber scan|findings|investigate|remediate|report
-  commands/compliance.ts          /compliance answer|rfp upload|status, /audit evidence
+  commands/cyber.ts               /cyber scan|findings|investigate|remediate|report|playbooks|run
+  commands/compliance.ts          /compliance answer|rfp upload|status|playbooks|run, /audit evidence
   register.ts                     single entrypoint to wire both command sets in
 ```
 
 ## What's real vs. stubbed right now
 
 Real: schema + RLS, connector interface contract, both agents' full
-workflow logic, the generalized approval-lock mechanism, audit logging,
-evidence-graph traversal, Slack/Teams command parsing and replies.
+workflow logic, all 16 playbooks' domain logic (severity/criticality
+scoring, freshness checks, repeat-offender detection, framework gap
+matching, live control testing), the generalized approval-lock mechanism,
+audit logging, evidence-graph traversal, playbook run-history recording,
+Slack/Teams command parsing and replies.
 
 Stubbed (marked `TODO(connector)` / `TODO(reasoning)` / `TODO(bot)` in the
 code): outbound calls to AWS/GitHub/SIEM/etc., real embedding generation
@@ -69,6 +82,7 @@ supabase db push          # applies supabase/migrations/*
 supabase functions serve cybersecurity-agent
 supabase functions serve compliance-agent
 supabase functions serve evidence-graph
+supabase functions serve playbook-scheduler
 ```
 
 Required env vars for the functions (set via `supabase secrets set` or
@@ -99,9 +113,17 @@ This runs against the mock connector data in
 `security_findings` rows — useful for testing the full detect → investigate
 → remediate → approval flow before any vendor API key exists.
 
+Or run any of the 16 playbooks directly:
+
+```bash
+curl -X POST http://localhost:54321/functions/v1/cybersecurity-agent \
+  -H 'content-type: application/json' \
+  -d '{"action":"run-playbook","organizationId":"<org-uuid>","actorId":null,"params":{"playbookId":"cloud-misconfiguration-sweep"}}'
+```
+
 ## Next steps to go live
 
-See `TECHNICAL_SPEC.md` §9 for exactly what's needed from you (repo
+See `TECHNICAL_SPEC.md` §10 for exactly what's needed from you (repo
 placement, Supabase project access, Slack/Teams app credentials, per-
 connector API credentials, and confirmation of which vuln
 scanner/EDR/SIEM you actually run).

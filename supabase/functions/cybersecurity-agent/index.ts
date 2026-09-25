@@ -5,34 +5,24 @@
 // Auto-remediation policy per org is read from connector_configs.config
 // (org-level settings) before any action is allowed to skip approval.
 
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { db } from "../_shared/db.ts";
 import { auditEntry, writeAuditLog } from "../_shared/audit.ts";
 import { createApprovalRequest } from "../_shared/approvals.ts";
-import { getConnector, listConnectors, registerConnector } from "../_shared/connectors/base.ts";
-import { AwsSecurityHubConnector } from "../_shared/connectors/aws-security-hub.ts";
-import { GitHubSecurityConnector } from "../_shared/connectors/github-security.ts";
-import { SiemWebhookConnector } from "../_shared/connectors/siem-webhook.ts";
-import { MicrosoftSentinelConnector } from "../_shared/connectors/microsoft-sentinel.ts";
-import { CrowdStrikeFalconConnector } from "../_shared/connectors/crowdstrike-falcon.ts";
-import { TenableIoConnector } from "../_shared/connectors/tenable-io.ts";
+import { getConnector, listConnectors } from "../_shared/connectors/base.ts";
+import "../_shared/connectors/register-all.ts";
+import { listPlaybooks, runPlaybook } from "../_shared/playbooks/base.ts";
+import "../_shared/playbooks/register-all.ts";
 import { RemediationActionType, SecurityFinding } from "../_shared/types.ts";
 
-registerConnector(new AwsSecurityHubConnector());
-registerConnector(new GitHubSecurityConnector());
-registerConnector(new SiemWebhookConnector());
-registerConnector(new MicrosoftSentinelConnector());
-registerConnector(new CrowdStrikeFalconConnector());
-registerConnector(new TenableIoConnector());
-
-function db(): SupabaseClient {
-  return createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-  );
-}
-
 interface CyberAgentRequest {
-  action: "scan" | "findings" | "investigate" | "remediate" | "report";
+  action:
+    | "scan"
+    | "findings"
+    | "investigate"
+    | "remediate"
+    | "report"
+    | "list-playbooks"
+    | "run-playbook";
   organizationId: string;
   actorId: string | null;
   params: Record<string, unknown>;
@@ -332,6 +322,19 @@ Deno.serve(async (req: Request) => {
         );
       case "report":
         return Response.json(await report(organizationId, (params.period as "weekly" | "monthly") ?? "weekly"));
+      case "list-playbooks":
+        return Response.json({
+          playbooks: listPlaybooks("cybersecurity").map((p) => ({
+            id: p.id,
+            title: p.title,
+            description: p.description,
+            trigger: p.trigger,
+          })),
+        });
+      case "run-playbook":
+        return Response.json(
+          await runPlaybook(String(params.playbookId), { organizationId, actorId, params }),
+        );
       default:
         return Response.json({ error: `Unknown action: ${action}` }, { status: 400 });
     }

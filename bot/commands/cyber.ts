@@ -91,10 +91,28 @@ const report: CommandHandler = async (ctx) => {
   );
 };
 
+const playbooks: CommandHandler = async (ctx) => {
+  const result = await callAgent("list-playbooks", ctx, {});
+  const list = (result.playbooks ?? []) as Array<{ id: string; title: string; trigger: string }>;
+  if (list.length === 0) return ctx.reply("No playbooks registered.");
+  const lines = list.map((p) => `• \`${p.id}\` (${p.trigger}) — ${p.title}`);
+  return ctx.reply(`Available Cybersecurity playbooks:\n${lines.join("\n")}\n\nRun one with \`/cyber run <id>\`.`);
+};
+
+const runPlaybookCommand: CommandHandler = async (ctx) => {
+  const playbookId = ctx.args[0];
+  if (!playbookId) return ctx.reply("Usage: /cyber run <playbook_id>");
+  const result = await callAgent("run-playbook", ctx, { playbookId });
+  if (result.error) return ctx.reply(`❌ ${result.error}`);
+  return ctx.reply(`✅ ${result.summary}`);
+};
+
 export function registerCyberCommands(registerCommand: (name: string, handler: CommandHandler) => void) {
   registerCommand("cyber scan", scan);
   registerCommand("cyber findings", findings);
   registerCommand("cyber investigate", investigate);
   registerCommand("cyber remediate", remediate);
   registerCommand("cyber report", report);
+  registerCommand("cyber playbooks", playbooks);
+  registerCommand("cyber run", runPlaybookCommand);
 }

@@ -4,15 +4,8 @@
 // Agent's remediations and the Compliance Agent's outbound answers reuse
 // one implementation instead of two copies.
 
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { db } from "./db.ts";
 import { ApprovalRefType, ApprovalRequest } from "./types.ts";
-
-function client(): SupabaseClient {
-  return createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-  );
-}
 
 export async function createApprovalRequest(params: {
   organizationId: string;
@@ -21,7 +14,7 @@ export async function createApprovalRequest(params: {
   requestedBy: string | null;
   eligibleApproverIds: string[];
 }): Promise<ApprovalRequest> {
-  const { data, error } = await client()
+  const { data, error } = await db()
     .from("approval_requests")
     .insert({
       organization_id: params.organizationId,
@@ -49,7 +42,7 @@ export async function claimApproval(
   approvalId: string,
   approverId: string,
 ): Promise<{ claimed: boolean; request: ApprovalRequest | null }> {
-  const { data, error } = await client()
+  const { data, error } = await db()
     .from("approval_requests")
     .update({ status: "locked", locked_by: approverId, locked_at: new Date().toISOString() })
     .eq("id", approvalId)
@@ -67,7 +60,7 @@ export async function resolveApproval(
   approverId: string,
   decision: "approved" | "rejected",
 ): Promise<ApprovalRequest> {
-  const { data, error } = await client()
+  const { data, error } = await db()
     .from("approval_requests")
     .update({
       status: decision,

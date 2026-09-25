@@ -72,9 +72,34 @@ const auditEvidence: CommandHandler = async (ctx) => {
   return ctx.reply(`TODO: fetch evidence chain for control ${controlId} from the evidence-graph service.`);
 };
 
+const playbooks: CommandHandler = async (ctx) => {
+  const result = await callAgent("list-playbooks", ctx, {});
+  const list = (result.playbooks ?? []) as Array<{ id: string; title: string; trigger: string }>;
+  if (list.length === 0) return ctx.reply("No playbooks registered.");
+  const lines = list.map((p) => `• \`${p.id}\` (${p.trigger}) — ${p.title}`);
+  return ctx.reply(`Available Compliance playbooks:\n${lines.join("\n")}\n\nRun one with \`/compliance run <id>\`.`);
+};
+
+const runPlaybookCommand: CommandHandler = async (ctx) => {
+  const playbookId = ctx.args[0];
+  if (!playbookId) return ctx.reply("Usage: /compliance run <playbook_id> [key=value ...]");
+  // Simple key=value parsing for playbook params beyond the id, e.g.
+  // `/compliance run vendor-risk-assessment vendorName=Acme`.
+  const params: Record<string, unknown> = {};
+  for (const arg of ctx.args.slice(1)) {
+    const [key, ...rest] = arg.split("=");
+    if (key && rest.length > 0) params[key] = rest.join("=");
+  }
+  const result = await callAgent("run-playbook", ctx, { playbookId, ...params });
+  if (result.error) return ctx.reply(`❌ ${result.error}`);
+  return ctx.reply(`✅ ${result.summary}`);
+};
+
 export function registerComplianceCommands(registerCommand: (name: string, handler: CommandHandler) => void) {
   registerCommand("compliance answer", answer);
   registerCommand("compliance rfp upload", rfpUpload);
   registerCommand("compliance status", status);
+  registerCommand("compliance playbooks", playbooks);
+  registerCommand("compliance run", runPlaybookCommand);
   registerCommand("audit evidence", auditEvidence);
 }

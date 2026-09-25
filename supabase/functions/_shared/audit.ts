@@ -2,18 +2,11 @@
 // table — this module only adds the new event types used by the two Trust
 // Agent workflows (see AuditEventType in ./types.ts).
 
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { db } from "./db.ts";
 import { AuditEventType, AuditLogEntry } from "./types.ts";
 
-function client(): SupabaseClient {
-  return createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-  );
-}
-
 export async function writeAuditLog(entry: AuditLogEntry): Promise<void> {
-  const { error } = await client().from("audit_logs").insert({
+  const { error } = await db().from("audit_logs").insert({
     organization_id: entry.organizationId,
     actor_id: entry.actorId,
     event_type: entry.eventType,

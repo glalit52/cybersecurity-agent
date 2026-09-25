@@ -45,7 +45,8 @@ Functions + the existing Slack/Teams bot layer, same as V1.
 
 ## 3. Data model (additive — assumes existing `organizations`/`profiles` tables)
 
-See `supabase/migrations/0001_enterprise_trust_agent_schema.sql` for DDL.
+See `supabase/migrations/0001_enterprise_trust_agent_schema.sql` and
+`0003_playbooks_and_extensions.sql` for DDL.
 
 - `evidence_nodes` — policies, systems, controls, evidence artifacts, owners,
   contracts, prior RFP answers. Each has a `pgvector` embedding for semantic
@@ -67,9 +68,75 @@ See `supabase/migrations/0001_enterprise_trust_agent_schema.sql` for DDL.
   secret store) for each connector.
 - `approval_requests` — generalized version of the DevOps approve/reject
   table from the Access Provisioning Agent, reused by both new agents.
-- `audit_logs` — extended with the new event types (see §6).
+- `playbook_runs` — execution history for every playbook run (manual,
+  scheduled, or event-triggered), independent of which agent invoked it.
+- `scheduled_playbooks` — per-org cron config for playbooks that run
+  automatically (see §4 and `playbook-scheduler`).
+- `audit_logs` — extended with the new event types (see §7).
 
-## 4. Cybersecurity Agent — workflow
+## 4. Playbook architecture: from 5 fixed actions to a use-case catalog
+
+Both agents originally exposed five hard-coded actions each. That doesn't
+scale to "advanced agents for all sorts of use cases" — it just grows one
+switch statement forever. Instead, every specific use case is now a
+**Playbook**: a self-contained module implementing
+
+```ts
+interface Playbook {
+  id: string;
+  category: "cybersecurity" | "compliance";
+  title: string;
+  description: string;
+  trigger: "manual" | "scheduled" | "event";
+  run(ctx: PlaybookContext): Promise<PlaybookResult>;
+}
+```
+
+registered into a shared registry (`_shared/playbooks/base.ts`). This is
+the same pattern the existing Anvita product already uses at the product
+level — Password Reset Bot, Ticket Triage, KYC Processing, Fraud Triage are
+each their own named agent sharing one platform — just formalized as a
+first-class extension point instead of one file per agent in a monolithic
+list. Every run is recorded in `playbook_runs` (schema in migration 0003)
+regardless of whether it was triggered manually (`/cyber run <id>` /
+`/compliance run <id>`), on a schedule (`playbook-scheduler` + pg_cron,
+matching the platform's existing pg_cron usage), or by a future connector
+event.
+
+The original five actions per agent (scan/findings/investigate/remediate/
+report; create-request/answer/status/route-approval) remain as the core
+HTTP surface for ad-hoc, single-item work — they're the primitives the
+playbooks are built from, not replaced by them.
+
+### Cybersecurity playbook catalog (8)
+
+| Playbook ID | Trigger | What it does |
+|---|---|---|
+| `dormant-privileged-access` | scheduled | Flags privileged accounts/roles unused past a configurable threshold, proposes revocation |
+| `cloud-misconfiguration-sweep` | scheduled | Filters AWS Security Hub signals to config-drift only (public buckets, open security groups, unencrypted volumes) |
+| `exposed-secret-response` | event | GitHub secret-scanning hit → treated as critical regardless of reported severity, proposes immediate rotation |
+| `identity-anomaly-triage` | event | Sentinel identity-risk signal → checks for repeat offenses in 30d, escalates (force re-auth) vs. notifies |
+| `endpoint-threat-containment` | event | High/critical CrowdStrike detection → proposes endpoint isolation, always routed for human approval |
+| `vulnerability-prioritization` | scheduled | Tenable finding scored by severity × asset criticality (not severity alone), opens tickets past SLA threshold |
+| `access-recertification-campaign` | scheduled | Walks the evidence graph for access-review controls, requests recertification from each control owner |
+| `phishing-triage` | event | Extracts IOCs from a reported email, auto-quarantines on high-confidence domain signals or escalates |
+
+### Compliance playbook catalog (8)
+
+| Playbook ID | Trigger | What it does |
+|---|---|---|
+| `rfp-response-orchestrator` | manual | Ingests a full RFP/questionnaire and answers every question from the evidence graph in one run |
+| `soc2-evidence-freshness-sweep` | scheduled | Proactively finds evidence past its freshness window; re-verifies live where possible, else escalates |
+| `policy-framework-gap-analysis` | manual | Diffs the evidence graph against a reference control catalog (SOC 2/ISO 27001/NIST CSF), logs unmapped controls |
+| `vendor-risk-assessment` | manual | Sends a security questionnaire to a third-party vendor and tracks the response (outbound, not inbound) |
+| `regulatory-change-monitor` | scheduled | Watches industry-relevant regulatory feeds, opens a governance review linking affected controls |
+| `internal-audit-control-testing` | manual | Live-verifies (via connector, not stored text) whether a control actually holds across its sampled systems |
+| `contract-compliance-review` | manual | Scans contracts for required clauses (DPA terms, breach notification SLA, sub-processor disclosure) |
+| `training-compliance-tracker` | scheduled | Tracks required security-training completion against the user roster, flags overdue individuals |
+
+Adding a 17th use case means adding one file to `_shared/playbooks/{cyber,compliance}/` and one line in `register-all.ts` — never touching the HTTP entrypoints, bot commands, or the other 16 playbooks.
+
+## 5. Cybersecurity Agent — workflow
 
 Slash commands (Slack + Teams, routed through the existing unified command
 router):
@@ -105,7 +172,7 @@ remediate within defined permissions, not just another dashboard — is the
 `remediate` step above; it is the whole reason the approval-lock workflow is
 being generalized rather than left one-off in Access Provisioning.
 
-## 5. Compliance / Audit / Governance / RFP Agent — workflow
+## 6. Compliance / Audit / Governance / RFP Agent — workflow
 
 ```
 /compliance rfp upload                 ingest an RFP/questionnaire (file or pasted text)
@@ -136,7 +203,7 @@ customer data at rest?"):
    pattern as a remediation action, just with a Compliance Officer as
    approver instead of DevOps.
 
-## 6. RBAC, Policy & Audit extensions
+## 7. RBAC, Policy & Audit extensions
 
 - New roles (Tenant Admin Panel → Roles & Permissions): **Security Analyst**
   (read findings, propose remediation), **Security Admin** (approve/execute
@@ -152,7 +219,7 @@ customer data at rest?"):
   `remediation.approved`, `remediation.executed`, `compliance.answered`,
   `compliance.flagged_gap`, `evidence.updated`.
 
-## 7. Connectors — V1 additions and priority
+## 8. Connectors — V1 additions and priority
 
 Reuse as-is (already built): Slack, MS Teams, Okta/Azure AD, GitHub,
 AWS IAM, Jira, Salesforce, Outlook/Gmail.
@@ -179,7 +246,7 @@ All connectors implement one shared interface (`ConnectorAdapter` in
 `supabase/functions/_shared/connectors/base.ts`) so adding a new one never
 touches agent logic.
 
-## 8. What's actually implemented in this repo vs. stubbed
+## 9. What's actually implemented in this repo vs. stubbed
 
 This repo had zero commits when this work started — it is not the live
 Anvita codebase. What's included now:
@@ -193,7 +260,7 @@ Anvita codebase. What's included now:
   so the pipeline is exercisable end-to-end today; swapping in a live call
   is a single function body, not a redesign.
 
-## 9. What we need from you to go live
+## 10. What we need from you to go live
 
 Same shape as your existing client-dependencies list:
 
@@ -210,7 +277,7 @@ Same shape as your existing client-dependencies list:
 - Confirmation on which vuln scanner / EDR / SIEM you actually run, so P2
   connectors target the real tool instead of a generic placeholder.
 
-## 10. Suggested milestones (same shape as your existing WBS)
+## 11. Suggested milestones (same shape as your existing WBS)
 
 | Milestone | Scope |
 |---|---|
