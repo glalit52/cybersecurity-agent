@@ -1,12 +1,14 @@
 // Contract & DPA Compliance Review — scans contract evidence nodes
 // (ingested from the document store / Google Drive / SharePoint via the
 // existing connectors) for required clauses (data processing terms, breach
-// notification SLA, sub-processor disclosure) using a keyword check today,
-// with a clear upgrade path to semantic clause extraction once the
-// reasoning pipeline is wired in.
+// notification SLA, sub-processor disclosure). Keyword matching is a cheap
+// first pass; anything it doesn't find gets one AI Gateway confirmation
+// pass before being logged as a real gap, since contracts phrase the same
+// clause many different ways and a keyword miss alone is a weak signal.
 
 import { Playbook, PlaybookContext, PlaybookResult } from "../base.ts";
 import { db } from "../../db.ts";
+import { generateCompletion, AiGatewayUnavailableError } from "../../ai-gateway.ts";
 
 interface RequiredClause {
   id: string;
@@ -45,11 +47,21 @@ export const contractComplianceReviewPlaybook: Playbook = {
 
     for (const contract of contracts ?? []) {
       const content = (contract.content ?? "").toLowerCase();
-      const missing = REQUIRED_CLAUSES.filter(
+      const keywordMisses = REQUIRED_CLAUSES.filter(
         (clause) => !clause.keywords.some((kw) => content.includes(kw.toLowerCase())),
       );
 
-      reviewResults.push({ contract: contract.title, missingClauses: missing.map((m) => m.label) });
+      // Confirm each keyword miss with the AI Gateway before treating it as
+      // a real gap — falls back to trusting the keyword result if the
+      // gateway is unavailable, same posture as the rest of the reasoning
+      // layer.
+      const missing: Array<{ clause: RequiredClause; reason: string }> = [];
+      for (const clause of keywordMisses) {
+        const confirmed = await confirmClauseMissing(clause, contract.content ?? "");
+        if (confirmed.missing) missing.push({ clause, reason: confirmed.reason });
+      }
+
+      reviewResults.push({ contract: contract.title, missingClauses: missing.map((m) => m.clause.label) });
       totalGaps += missing.length;
 
       if (missing.length > 0) {
@@ -69,12 +81,12 @@ export const contractComplianceReviewPlaybook: Playbook = {
           await db()
             .from("compliance_questions")
             .insert(
-              missing.map((clause) => ({
+              missing.map((m) => ({
                 request_id: request.id,
                 organization_id: ctx.organizationId,
-                question_text: `Contract "${contract.title}" is missing: ${clause.label}`,
+                question_text: `Contract "${contract.title}" is missing: ${m.clause.label}`,
                 flagged_gap: true,
-                gap_reason: `No "${clause.label}" clause detected via keyword scan — TODO(reasoning): confirm with semantic clause extraction before treating as a confirmed gap.`,
+                gap_reason: m.reason,
               })),
             );
         }
@@ -88,3 +100,40 @@ export const contractComplianceReviewPlaybook: Playbook = {
     };
   },
 };
+
+async function confirmClauseMissing(
+  clause: RequiredClause,
+  contractText: string,
+): Promise<{ missing: boolean; reason: string }> {
+  if (!contractText.trim()) {
+    return { missing: true, reason: `Contract has no extracted text to review for "${clause.label}".` };
+  }
+
+  try {
+    const response = await generateCompletion({
+      systemPrompt:
+        "You review contracts for required compliance clauses. You will be given a clause " +
+        "description and full contract text. Answer with exactly one line: either " +
+        '"PRESENT: <one sentence quoting or paraphrasing where it appears>" or ' +
+        '"MISSING: <one sentence explaining what is absent>". The clause may use different ' +
+        "wording than the label — look for the substance, not exact keyword matches.",
+      userPrompt: `Required clause: ${clause.label}\n\nContract text:\n${contractText.slice(0, 12000)}`,
+      maxTokens: 150,
+    });
+
+    const isPresent = response.trim().toUpperCase().startsWith("PRESENT");
+    return {
+      missing: !isPresent,
+      reason: isPresent
+        ? response // present after all — caller won't log this as a gap, but keep for logging/debug
+        : `No "${clause.label}" clause found (keyword scan + AI Gateway confirmation both missed it): ${response}`,
+    };
+  } catch (err) {
+    if (!(err instanceof AiGatewayUnavailableError)) throw err;
+    console.error(`contract-compliance-review: confirmation unavailable, trusting keyword scan: ${err.message}`);
+    return {
+      missing: true,
+      reason: `No "${clause.label}" clause detected via keyword scan (AI Gateway unavailable for confirmation — treat as provisional until reviewed).`,
+    };
+  }
+}

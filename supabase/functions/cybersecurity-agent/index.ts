@@ -12,7 +12,9 @@ import { getConnector, listConnectors } from "../_shared/connectors/base.ts";
 import "../_shared/connectors/register-all.ts";
 import { listPlaybooks, runPlaybook } from "../_shared/playbooks/base.ts";
 import "../_shared/playbooks/register-all.ts";
-import { RemediationActionType, SecurityFinding } from "../_shared/types.ts";
+import { relatedNodes, semanticSearchByText } from "../_shared/evidence-graph-core.ts";
+import { generateCompletion, AiGatewayUnavailableError } from "../_shared/ai-gateway.ts";
+import { EvidenceNode, RemediationActionType, SecurityFinding } from "../_shared/types.ts";
 
 interface CyberAgentRequest {
   action:
@@ -84,44 +86,85 @@ async function investigate(orgId: string, findingId: string, actorId: string | n
 
   if (error || !finding) throw new Error(`Finding ${findingId} not found for org ${orgId}`);
 
-  // TODO(reasoning): replace with a real RAG call into the evidence graph
-  // (evidence-graph function) + the AI Gateway (GPT-5/Gemini) to produce a
-  // structured explanation citing the owning control/policy/system nodes.
-  const relatedEvidence = await findRelatedEvidence(orgId, finding.resource_ref);
+  // Semantic search for the evidence describing the affected resource
+  // (owning control/policy/system), then walk the graph one hop out from
+  // each hit to pull in owners and related controls the search alone
+  // wouldn't surface. Falls back to a keyword match if the AI Gateway is
+  // unavailable (see evidence-graph-core.semanticSearchByText).
+  const { results: directHits, usedFallback } = await semanticSearchByText(
+    orgId,
+    `${finding.finding_type} ${finding.resource_ref} ${finding.summary}`,
+  );
+  const expanded = await expandWithRelatedNodes(orgId, directHits);
 
   await db()
     .from("security_findings")
     .update({
       status: "investigating",
-      related_node_ids: relatedEvidence.map((n: { id: string }) => n.id),
+      related_node_ids: expanded.map((n) => n.id),
     })
     .eq("id", findingId);
 
   await writeAuditLog(
     auditEntry(orgId, actorId, "finding.investigated", findingId, {
-      relatedEvidenceCount: relatedEvidence.length,
+      relatedEvidenceCount: expanded.length,
+      retrievalUsedFallback: usedFallback,
     }),
   );
 
+  const explanation = await draftInvestigationNarrative(mapFindingRow(finding), expanded);
+
   return {
     finding: mapFindingRow(finding),
-    relatedEvidence,
-    explanation:
-      `TODO(reasoning): generate investigation narrative for ${finding.finding_type} ` +
-      `on ${finding.resource_ref} once the reasoning pipeline is wired in.`,
+    relatedEvidence: expanded,
+    explanation,
   };
 }
 
-async function findRelatedEvidence(orgId: string, resourceRef: string) {
-  // TODO(reasoning): semantic search (pgvector) + graph walk over
-  // evidence_edges once evidence_nodes is populated for this org.
-  const { data } = await db()
-    .from("evidence_nodes")
-    .select("id, title, node_type")
-    .eq("organization_id", orgId)
-    .ilike("content", `%${resourceRef}%`)
-    .limit(5);
-  return data ?? [];
+/** One hop out from each directly-matched node, deduped, capped to keep the narrative prompt focused. */
+async function expandWithRelatedNodes(orgId: string, directHits: EvidenceNode[]): Promise<EvidenceNode[]> {
+  const seen = new Map<string, EvidenceNode>();
+  for (const node of directHits) seen.set(node.id, node);
+
+  for (const node of directHits.slice(0, 3)) {
+    const related = await relatedNodes(orgId, node.id, 1);
+    for (const r of related) {
+      if (!seen.has(r.id)) seen.set(r.id, r);
+    }
+  }
+
+  return Array.from(seen.values()).slice(0, 10);
+}
+
+async function draftInvestigationNarrative(finding: SecurityFinding, evidence: EvidenceNode[]): Promise<string> {
+  try {
+    const evidenceBlock = evidence
+      .map((n) => `- ${n.title} (${n.nodeType}): ${n.content ?? "(no content)"}`)
+      .join("\n") || "(no related evidence found in the graph)";
+
+    return await generateCompletion({
+      systemPrompt:
+        "You are the investigation component of a Cybersecurity Agent. Given a security " +
+        "finding and related evidence-graph context (owning policies, controls, systems, " +
+        "owners), explain in 2-4 sentences why this finding likely occurred, who owns the " +
+        "affected resource if known, and what supporting context exists. Be concrete and " +
+        "avoid generic security advice — ground everything in the evidence provided.",
+      userPrompt:
+        `Finding: ${finding.findingType} (severity: ${finding.severity})\n` +
+        `Resource: ${finding.resourceRef}\n` +
+        `Summary: ${finding.summary}\n\n` +
+        `Related evidence:\n${evidenceBlock}`,
+      maxTokens: 400,
+    });
+  } catch (err) {
+    if (!(err instanceof AiGatewayUnavailableError)) throw err;
+    console.error(`cybersecurity-agent: investigation narrative unavailable: ${err.message}`);
+    const titles = evidence.map((n) => n.title).join(", ") || "none found";
+    return (
+      `AI Gateway unavailable — showing related evidence without a generated narrative. ` +
+      `Related evidence: ${titles}. A security analyst should review these directly.`
+    );
+  }
 }
 
 // ---------------------------------------------------------------------

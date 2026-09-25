@@ -15,6 +15,8 @@ import { db } from "./db.ts";
 import { auditEntry, writeAuditLog } from "./audit.ts";
 import { createApprovalRequest } from "./approvals.ts";
 import { getConnector } from "./connectors/base.ts";
+import { semanticSearchByText, isStale } from "./evidence-graph-core.ts";
+import { generateCompletion, AiGatewayUnavailableError } from "./ai-gateway.ts";
 import { ApprovalRequest, ComplianceQuestion, ComplianceRequestType, EvidenceNode } from "./types.ts";
 
 // ---------------------------------------------------------------------
@@ -77,35 +79,41 @@ export async function answerQuestion(
     .single();
   if (error || !question) throw new Error(`Question ${questionId} not found for org ${orgId}`);
 
-  // 1. Retrieve: semantic search over the evidence graph.
-  // TODO(reasoning): generate a real embedding for question.question_text
-  // via the AI Gateway before calling evidence-graph's `search` op. Using a
-  // direct content match as a placeholder so this is exercisable now.
-  const candidates = await retrieveCandidateEvidence(orgId, question.question_text);
+  // 1. Retrieve: semantic search over the evidence graph (embeds the
+  // question via the AI Gateway; falls back to keyword match if the
+  // gateway is unavailable — see evidence-graph-core.semanticSearchByText).
+  const { results: candidates, usedFallback: retrievalUsedFallback } = await semanticSearchByText(
+    orgId,
+    question.question_text,
+  );
 
   // 2. Verify: for any candidate backed by a live system, cross-check the
   // connector before trusting the stored evidence.
-  await Promise.all(
-    candidates
-      .filter((n) => n.sourceConnector)
-      .map(async (n) => {
-        const connector = getConnector(n.sourceConnector!);
-        if (!connector) return null;
-        return connector.verifyFact(orgId, question.question_text);
-      }),
-  );
+  const verifications = (
+    await Promise.all(
+      candidates
+        .filter((n) => n.sourceConnector)
+        .map(async (n) => {
+          const connector = getConnector(n.sourceConnector!);
+          if (!connector) return null;
+          const result = await connector.verifyFact(orgId, question.question_text);
+          return { node: n, ...result };
+        }),
+    )
+  ).filter((v): v is { node: EvidenceNode; verified: boolean; detail: string } => v !== null);
 
   // 3. Freshness check.
   const staleNodes = candidates.filter((n) => isStale(n));
   const flaggedGap = candidates.length === 0 || staleNodes.length === candidates.length;
 
-  // 4. Generate.
-  // TODO(reasoning): replace with a real AI Gateway call that drafts the
-  // answer from `candidates` + verification results, with inline citations.
-  const answerText = flaggedGap
-    ? null
-    : `TODO(reasoning): draft answer to "${question.question_text}" citing ` +
-      `${candidates.map((c) => c.title).join(", ")}.`;
+  // 4. Generate: draft the answer from the retrieved evidence + any live
+  // verification results, with inline citations. Falls back to a plain
+  // evidence listing (no generated prose) if the AI Gateway is unavailable
+  // — the citations are still useful without a drafted paragraph.
+  let answerText: string | null = null;
+  if (!flaggedGap) {
+    answerText = await draftAnswer(question.question_text, candidates, verifications);
+  }
 
   const confidence = flaggedGap ? 0 : candidates.length >= 2 ? 0.8 : 0.5;
 
@@ -133,6 +141,7 @@ export async function answerQuestion(
     auditEntry(orgId, actorId, flaggedGap ? "compliance.flagged_gap" : "compliance.answered", questionId, {
       evidenceCount: candidates.length,
       confidence,
+      retrievalUsedFallback,
     }),
   );
 
@@ -143,27 +152,55 @@ export async function answerQuestion(
   return mapQuestionRow(updated);
 }
 
-export async function retrieveCandidateEvidence(orgId: string, questionText: string): Promise<EvidenceNode[]> {
-  // Placeholder retrieval until real embeddings are wired in: pull nodes
-  // whose content overlaps the question. See evidence-graph/index.ts for
-  // the real semantic-search path once embeddings exist.
-  const keywords = questionText
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, "")
-    .split(/\s+/)
-    .filter((w) => w.length > 4)
-    .slice(0, 3);
+interface VerificationResult {
+  node: EvidenceNode;
+  verified: boolean;
+  detail: string;
+}
 
-  if (keywords.length === 0) return [];
+/**
+ * Drafts the answer text from retrieved evidence + live verification
+ * results via the AI Gateway, with inline citations back to each node's
+ * title. If the gateway is unavailable, falls back to a plain evidence
+ * listing rather than failing the whole answer — the citations are still
+ * useful to a human reviewer without generated prose.
+ */
+async function draftAnswer(
+  questionText: string,
+  candidates: EvidenceNode[],
+  verifications: VerificationResult[],
+): Promise<string> {
+  try {
+    const evidenceBlock = candidates
+      .map((c, i) => {
+        const verification = verifications.find((v) => v.node.id === c.id);
+        const verificationNote = verification
+          ? ` [live verification: ${verification.verified ? "confirmed" : "could not confirm"} — ${verification.detail}]`
+          : "";
+        return `[${i + 1}] ${c.title} (${c.nodeType}): ${c.content ?? "(no content)"}${verificationNote}`;
+      })
+      .join("\n\n");
 
-  const { data } = await db()
-    .from("evidence_nodes")
-    .select("*")
-    .eq("organization_id", orgId)
-    .or(keywords.map((k) => `content.ilike.%${k}%`).join(","))
-    .limit(5);
-
-  return (data ?? []).map(mapNodeRow);
+    return await generateCompletion({
+      systemPrompt:
+        "You are the compliance answer-drafting component of an enterprise trust platform. " +
+        "Draft a precise, factual answer to the security/compliance question using ONLY the " +
+        "evidence provided below. Cite evidence inline using [1], [2], etc. matching the " +
+        "numbered list. If the evidence is insufficient or contradictory, say so explicitly " +
+        "rather than guessing. Keep the answer concise — this goes into a customer-facing " +
+        "questionnaire response.",
+      userPrompt: `Question: ${questionText}\n\nEvidence:\n${evidenceBlock}`,
+      maxTokens: 500,
+    });
+  } catch (err) {
+    if (!(err instanceof AiGatewayUnavailableError)) throw err;
+    console.error(`compliance-core: answer drafting unavailable, falling back to evidence listing: ${err.message}`);
+    const citations = candidates.map((c, i) => `[${i + 1}] ${c.title}`).join("; ");
+    return (
+      `AI Gateway unavailable — showing matched evidence without a generated narrative. ` +
+      `Relevant evidence: ${citations}. A reviewer should draft the final answer from these citations.`
+    );
+  }
 }
 
 async function notifyControlOwner(orgId: string, candidates: EvidenceNode[]) {
@@ -172,12 +209,6 @@ async function notifyControlOwner(orgId: string, candidates: EvidenceNode[]) {
   // TODO: post a Slack/Teams DM to each control owner via the existing bot
   // layer notifying them their evidence is missing/stale for a live request.
   console.log(`TODO(bot): notify control owners ${ownerIds.join(", ")} in org ${orgId} of a compliance gap.`);
-}
-
-function isStale(node: EvidenceNode): boolean {
-  if (!node.currentAsOf) return true;
-  const ageDays = (Date.now() - new Date(node.currentAsOf).getTime()) / (1000 * 60 * 60 * 24);
-  return ageDays > node.freshnessDays;
 }
 
 // ---------------------------------------------------------------------
@@ -223,18 +254,3 @@ function mapQuestionRow(row: any): ComplianceQuestion {
   };
 }
 
-// deno-lint-ignore no-explicit-any
-function mapNodeRow(row: any): EvidenceNode {
-  return {
-    id: row.id,
-    organizationId: row.organization_id,
-    nodeType: row.node_type,
-    title: row.title,
-    content: row.content,
-    sourceConnector: row.source_connector,
-    sourceRef: row.source_ref,
-    currentAsOf: row.current_as_of,
-    freshnessDays: row.freshness_days,
-    ownerId: row.owner_id,
-  };
-}

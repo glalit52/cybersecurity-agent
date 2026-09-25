@@ -253,12 +253,24 @@ Anvita codebase. What's included now:
 
 - Real: schema, connector interface contract, agent orchestration logic
   (detect/investigate/remediate/monitor/report and
-  ingest/retrieve/verify/generate/attach/flag), approval-lock logic, audit
-  logging, Slack/Teams command router extension, RBAC role definitions.
+  ingest/retrieve/verify/generate/attach/flag), all 16 playbooks' domain
+  logic, approval-lock logic, audit logging, Slack/Teams command router
+  extension, RBAC role definitions, **and the reasoning layer**: semantic
+  retrieval over the evidence graph (real `text-embedding-3-large`
+  embeddings + pgvector cosine search), AI-drafted compliance answers with
+  inline citations, and AI-drafted investigation narratives for security
+  findings (`_shared/ai-gateway.ts`, `_shared/evidence-graph-core.ts`).
 - Stubbed (clearly marked `TODO(connector)`): the actual outbound HTTP calls
   to AWS/Okta/GitHub/SIEM/etc. Each stub returns realistic shaped mock data
   so the pipeline is exercisable end-to-end today; swapping in a live call
   is a single function body, not a redesign.
+- The reasoning layer degrades, not breaks, without a credential: every
+  AI Gateway call site (retrieval, answer drafting, investigation
+  narratives, contract clause confirmation) catches
+  `AiGatewayUnavailableError` and falls back to keyword search / a plain
+  evidence listing / trusting the keyword scan respectively — so the
+  pipeline still produces useful (if less polished) output before
+  `AI_GATEWAY_API_KEY` is configured, rather than erroring out.
 
 ## 10. What we need from you to go live
 
@@ -269,6 +281,10 @@ Same shape as your existing client-dependencies list:
   than living in parallel.
 - Supabase project URL + service role key (or a migration PR path into your
   existing project).
+- An `AI_GATEWAY_API_KEY` (or `OPENAI_API_KEY`) so the reasoning layer runs
+  live instead of falling back to keyword search — ideally routed through
+  whatever your existing "AI Gateway ... via Anvita AI" abstraction already
+  is, via `AI_GATEWAY_URL`, rather than hitting OpenAI directly.
 - Slack app + MS Teams app credentials for the bot layer, if different from
   the ones already provisioned for Bot Foundation.
 - Per-connector credentials as each is turned on (AWS IAM role/OIDC for

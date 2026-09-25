@@ -38,6 +38,11 @@ supabase/functions/
   _shared/audit.ts                audit log writer (new event types only)
   _shared/approvals.ts            generalized approve/reject-with-lock workflow,
                                    lifted from the existing Access Provisioning Agent
+  _shared/ai-gateway.ts           AI Gateway client: embeddings + completions,
+                                   throws AiGatewayUnavailableError when unconfigured
+                                   so callers can fall back gracefully
+  _shared/evidence-graph-core.ts  upsert (auto-embeds), semantic search (keyword
+                                   fallback), graph traversal
   _shared/compliance-core.ts      ingest / retrieve / verify / generate / attach & flag core logic
   _shared/playbooks/base.ts       Playbook interface + registry + run-history recording
   _shared/playbooks/cyber/*.ts    8 Cybersecurity playbooks (see TECHNICAL_SPEC.md §4)
@@ -62,13 +67,18 @@ workflow logic, all 16 playbooks' domain logic (severity/criticality
 scoring, freshness checks, repeat-offender detection, framework gap
 matching, live control testing), the generalized approval-lock mechanism,
 audit logging, evidence-graph traversal, playbook run-history recording,
-Slack/Teams command parsing and replies.
+Slack/Teams command parsing and replies, **and the reasoning layer**:
+real `text-embedding-3-large` embeddings + pgvector semantic search,
+AI-drafted compliance answers with inline citations, AI-drafted
+investigation narratives, and AI-confirmed contract clause gaps
+(`_shared/ai-gateway.ts`). Every reasoning call falls back to keyword
+search / plain evidence listings if no AI Gateway credential is
+configured, so the pipeline degrades rather than breaks without one.
 
-Stubbed (marked `TODO(connector)` / `TODO(reasoning)` / `TODO(bot)` in the
-code): outbound calls to AWS/GitHub/SIEM/etc., real embedding generation
-and LLM-drafted answers via the AI Gateway, and pulling uploaded files out
-of the real Slack/Teams event payload. Each stub returns realistic shaped
-data so every pipeline (`scan → investigate → remediate` and
+Stubbed (marked `TODO(connector)` / `TODO(bot)` in the code): outbound
+calls to AWS/GitHub/SIEM/etc., and pulling uploaded files out of the real
+Slack/Teams event payload. Each connector stub returns realistic shaped
+mock data so every pipeline (`scan → investigate → remediate` and
 `ingest → answer`) runs end-to-end today against mock signals.
 
 ## Running locally
@@ -91,6 +101,15 @@ Required env vars for the functions (set via `supabase secrets set` or
 ```
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
+
+# Reasoning layer (optional — falls back to keyword search / plain
+# evidence listings if unset, see TECHNICAL_SPEC.md §9):
+AI_GATEWAY_API_KEY            # or OPENAI_API_KEY
+AI_GATEWAY_URL                # defaults to https://api.openai.com/v1;
+                               # point this at the platform's existing AI
+                               # Gateway once merged
+AI_GATEWAY_CHAT_MODEL         # defaults to "gpt-5"
+AI_GATEWAY_EMBEDDING_MODEL    # defaults to "text-embedding-3-large"
 ```
 
 The schema assumes an existing `organizations` and `profiles` table from
