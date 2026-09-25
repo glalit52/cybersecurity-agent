@@ -157,18 +157,23 @@ customer data at rest?"):
 Reuse as-is (already built): Slack, MS Teams, Okta/Azure AD, GitHub,
 AWS IAM, Jira, Salesforce, Outlook/Gmail.
 
-New, priority order:
+New, priority order, with concrete vendor picks (not left generic) so the
+pilot has a real integration target instead of "any SIEM/EDR/scanner":
 
-| Priority | Connector | Used by |
-|---|---|---|
-| P1 | AWS Security Hub / Config | Cyber — infra posture |
-| P1 | GitHub Advanced Security (secret scanning, Dependabot) | Cyber — code |
-| P1 | Generic SIEM webhook ingest (Splunk/Sentinel/Datadog-compatible) | Cyber — detect |
-| P1 | Document/evidence store (reuses Supabase Storage + Google Drive/SharePoint via existing Google/Outlook connectors) | Compliance — evidence |
-| P2 | Vulnerability scanner (Qualys/Tenable/Snyk — generic interface, pick one for pilot) | Cyber |
-| P2 | EDR (CrowdStrike/Defender/SentinelOne) | Cyber |
-| P2 | SOC2/ISO evidence platform (Vanta/Drata) if the org already has one, else internal evidence store only | Compliance |
-| P3 | Azure Defender / GCP Security Command Center | Cyber (parity for non-AWS orgs) |
+| Priority | Connector | Used by | Why this vendor |
+|---|---|---|---|
+| P1 | AWS Security Hub / Config | Cyber — infra posture | Matches the existing AWS IAM connector; same account/role |
+| P1 | GitHub Advanced Security (secret scanning, Dependabot) | Cyber — code | Matches the existing GitHub connector |
+| P1 | **Microsoft Sentinel** (SIEM) | Cyber — detect | Shares tenant/auth with the already-integrated Azure AD connector; fastest-growing enterprise SIEM, avoids a net-new vendor relationship for most pilot orgs |
+| P1 | Document/evidence store (Supabase Storage + Google Drive/SharePoint via existing Google/Outlook connectors) | Compliance — evidence | No new connector needed |
+| P2 | **CrowdStrike Falcon** (EDR) | Cyber | Most widely deployed enterprise EDR, strongest public API for the containment actions the agent needs to execute, not just read |
+| P2 | **Tenable.io** (vulnerability management) | Cyber | Industry-standard infra/network vuln scanning; complements GitHub Advanced Security, which only covers code/dependencies |
+| P2 | SOC2/ISO evidence platform (Vanta/Drata) if the org already has one, else internal evidence store only | Compliance | Optional — only if the pilot org already pays for one |
+| P3 | Azure Defender / GCP Security Command Center | Cyber (parity for non-AWS orgs) | Add once a pilot org is Azure/GCP-primary |
+
+Generic SIEM webhook ingest (`siem-webhook.ts`) stays in place as a
+fallback for orgs on Splunk/Datadog/QRadar instead of Sentinel — it's not
+replaced, just no longer the default recommendation.
 
 All connectors implement one shared interface (`ConnectorAdapter` in
 `supabase/functions/_shared/connectors/base.ts`) so adding a new one never

@@ -12,11 +12,17 @@ import { getConnector, listConnectors, registerConnector } from "../_shared/conn
 import { AwsSecurityHubConnector } from "../_shared/connectors/aws-security-hub.ts";
 import { GitHubSecurityConnector } from "../_shared/connectors/github-security.ts";
 import { SiemWebhookConnector } from "../_shared/connectors/siem-webhook.ts";
+import { MicrosoftSentinelConnector } from "../_shared/connectors/microsoft-sentinel.ts";
+import { CrowdStrikeFalconConnector } from "../_shared/connectors/crowdstrike-falcon.ts";
+import { TenableIoConnector } from "../_shared/connectors/tenable-io.ts";
 import { RemediationActionType, SecurityFinding } from "../_shared/types.ts";
 
 registerConnector(new AwsSecurityHubConnector());
 registerConnector(new GitHubSecurityConnector());
 registerConnector(new SiemWebhookConnector());
+registerConnector(new MicrosoftSentinelConnector());
+registerConnector(new CrowdStrikeFalconConnector());
+registerConnector(new TenableIoConnector());
 
 function db(): SupabaseClient {
   return createClient(

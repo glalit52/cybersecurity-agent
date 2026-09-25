@@ -29,7 +29,9 @@ supabase/functions/
   _shared/types.ts                shared TS types matching the schema
   _shared/connectors/base.ts      ConnectorAdapter interface + registry
   _shared/connectors/*.ts         AWS Security Hub, GitHub Advanced Security,
-                                   generic SIEM webhook — stubbed, see below
+                                   Microsoft Sentinel, CrowdStrike Falcon,
+                                   Tenable.io, generic SIEM webhook — stubbed,
+                                   see below
   _shared/audit.ts                audit log writer (new event types only)
   _shared/approvals.ts            generalized approve/reject-with-lock workflow,
                                    lifted from the existing Access Provisioning Agent
