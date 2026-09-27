@@ -9,7 +9,11 @@ import { internalHeaders } from "../internal-fetch.ts";
 const CONNECTOR_ONBOARDING_URL = Deno.env.get("CONNECTOR_ONBOARDING_URL") ??
   "http://localhost:54321/functions/v1/connector-onboarding";
 
-async function callOnboarding(action: string, ctx: CommandContext, params: Record<string, unknown>) {
+async function callOnboarding(
+  action: string,
+  ctx: CommandContext,
+  params: Record<string, unknown>,
+) {
   const res = await fetch(CONNECTOR_ONBOARDING_URL, {
     method: "POST",
     headers: internalHeaders(),
@@ -25,10 +29,15 @@ async function callOnboarding(action: string, ctx: CommandContext, params: Recor
 
 const list: CommandHandler = async (ctx) => {
   const result = await callOnboarding("list", ctx, {});
-  const connectors = (result.connectors ?? []) as Array<{ id: string; enabled: boolean; hasCredential: boolean }>;
+  const connectors = (result.connectors ?? []) as Array<
+    { id: string; enabled: boolean; hasCredential: boolean }
+  >;
   if (connectors.length === 0) return ctx.reply("No connectors registered.");
   const lines = connectors.map(
-    (c) => `• ${c.enabled ? "✅" : "⬜"} \`${c.id}\`${c.enabled && !c.hasCredential ? " (no credential set — stub data only)" : ""}`,
+    (c) =>
+      `• ${c.enabled ? "✅" : "⬜"} \`${c.id}\`${
+        c.enabled && !c.hasCredential ? " (no credential set — stub data only)" : ""
+      }`,
   );
   return ctx.reply(
     `Connector status:\n${lines.join("\n")}\n\n` +
@@ -51,7 +60,9 @@ const connect: CommandHandler = async (ctx) => {
   if (result.error) return ctx.reply(`❌ ${result.error}`);
   return ctx.reply(
     `✅ \`${connectorId}\` enabled for this org.` +
-      (params.credentialRef ? "" : " No credential reference was provided — it will return stub data until one is configured."),
+      (params.credentialRef
+        ? ""
+        : " No credential reference was provided — it will return stub data until one is configured."),
   );
 };
 
@@ -63,7 +74,9 @@ const disconnect: CommandHandler = async (ctx) => {
   return ctx.reply(`✅ \`${connectorId}\` disabled for this org.`);
 };
 
-export function registerConnectorCommands(registerCommand: (name: string, handler: CommandHandler) => void) {
+export function registerConnectorCommands(
+  registerCommand: (name: string, handler: CommandHandler) => void,
+) {
   registerCommand("cyber connectors", list);
   registerCommand("cyber connect", connect);
   registerCommand("cyber disconnect", disconnect);

@@ -13,7 +13,7 @@ import { getEnabledConnector, getEnabledConnectors } from "../_shared/connector-
 import { listPlaybooks, runPlaybook } from "../_shared/playbooks/base.ts";
 import "../_shared/playbooks/register-all.ts";
 import { relatedNodes, semanticSearchByText } from "../_shared/evidence-graph-core.ts";
-import { generateCompletion, AiGatewayUnavailableError } from "../_shared/ai-gateway.ts";
+import { AiGatewayUnavailableError, generateCompletion } from "../_shared/ai-gateway.ts";
 import { checkInternalAuth } from "../_shared/internal-auth.ts";
 import { EvidenceNode, RemediationActionType, SecurityFinding } from "../_shared/types.ts";
 
@@ -39,7 +39,10 @@ async function detect(orgId: string, scope: string): Promise<SecurityFinding[]> 
   // Only connectors this org has actually enabled (see connector-configs.ts)
   // — a fresh org with nothing configured gets zero findings, not mock data
   // from every connector that happens to be registered in this process.
-  const connectors = await getEnabledConnectors(orgId, scope === "all" ? undefined : (id) => id.includes(scope));
+  const connectors = await getEnabledConnectors(
+    orgId,
+    scope === "all" ? undefined : (id) => id.includes(scope),
+  );
 
   const results: SecurityFinding[] = [];
   for (const connector of connectors) {
@@ -124,7 +127,10 @@ async function investigate(orgId: string, findingId: string, actorId: string | n
 }
 
 /** One hop out from each directly-matched node, deduped, capped to keep the narrative prompt focused. */
-async function expandWithRelatedNodes(orgId: string, directHits: EvidenceNode[]): Promise<EvidenceNode[]> {
+async function expandWithRelatedNodes(
+  orgId: string,
+  directHits: EvidenceNode[],
+): Promise<EvidenceNode[]> {
   const seen = new Map<string, EvidenceNode>();
   for (const node of directHits) seen.set(node.id, node);
 
@@ -138,7 +144,10 @@ async function expandWithRelatedNodes(orgId: string, directHits: EvidenceNode[])
   return Array.from(seen.values()).slice(0, 10);
 }
 
-async function draftInvestigationNarrative(finding: SecurityFinding, evidence: EvidenceNode[]): Promise<string> {
+async function draftInvestigationNarrative(
+  finding: SecurityFinding,
+  evidence: EvidenceNode[],
+): Promise<string> {
   try {
     const evidenceBlock = evidence
       .map((n) => `- ${n.title} (${n.nodeType}): ${n.content ?? "(no content)"}`)
@@ -151,8 +160,7 @@ async function draftInvestigationNarrative(finding: SecurityFinding, evidence: E
         "owners), explain in 2-4 sentences why this finding likely occurred, who owns the " +
         "affected resource if known, and what supporting context exists. Be concrete and " +
         "avoid generic security advice — ground everything in the evidence provided.",
-      userPrompt:
-        `Finding: ${finding.findingType} (severity: ${finding.severity})\n` +
+      userPrompt: `Finding: ${finding.findingType} (severity: ${finding.severity})\n` +
         `Resource: ${finding.resourceRef}\n` +
         `Summary: ${finding.summary}\n\n` +
         `Related evidence:\n${evidenceBlock}`,
@@ -242,7 +250,8 @@ export async function executeRemediation(
     })
     : {
       success: false,
-      message: `Connector "${action.security_findings.connector}" is not enabled for this org — cannot execute.`,
+      message:
+        `Connector "${action.security_findings.connector}" is not enabled for this org — cannot execute.`,
     };
 
   await db()
@@ -255,7 +264,10 @@ export async function executeRemediation(
     .eq("id", actionId);
 
   if (result.success) {
-    await db().from("security_findings").update({ status: "remediated" }).eq("id", action.finding_id);
+    await db().from("security_findings").update({ status: "remediated" }).eq(
+      "id",
+      action.finding_id,
+    );
   }
 
   await writeAuditLog(
@@ -353,7 +365,9 @@ Deno.serve(async (req: Request) => {
 
     switch (action) {
       case "scan":
-        return Response.json({ findings: await detect(organizationId, String(params.scope ?? "all")) });
+        return Response.json({
+          findings: await detect(organizationId, String(params.scope ?? "all")),
+        });
       case "findings": {
         const { data } = await db()
           .from("security_findings")
@@ -375,7 +389,9 @@ Deno.serve(async (req: Request) => {
           ),
         );
       case "report":
-        return Response.json(await report(organizationId, (params.period as "weekly" | "monthly") ?? "weekly"));
+        return Response.json(
+          await report(organizationId, (params.period as "weekly" | "monthly") ?? "weekly"),
+        );
       case "list-playbooks":
         return Response.json({
           playbooks: listPlaybooks("cybersecurity").map((p) => ({
@@ -394,6 +410,8 @@ Deno.serve(async (req: Request) => {
     }
   } catch (err) {
     console.error("cybersecurity-agent error:", err);
-    return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    return Response.json({ error: err instanceof Error ? err.message : String(err) }, {
+      status: 500,
+    });
   }
 });

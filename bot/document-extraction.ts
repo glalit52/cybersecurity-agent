@@ -16,7 +16,7 @@ export interface ExtractedDocument {
 const PLAIN_TEXT_TYPES = new Set(["text/plain", "text/markdown"]);
 const CSV_TYPES = new Set(["text/csv", "text/tab-separated-values"]);
 
-export async function extractText(
+export function extractText(
   bytes: Uint8Array,
   contentType: string | null,
   filename: string,
@@ -24,25 +24,33 @@ export async function extractText(
   const type = contentType ?? guessContentTypeFromFilename(filename);
 
   if (type && PLAIN_TEXT_TYPES.has(type)) {
-    return { text: new TextDecoder().decode(bytes), method: "plain-text" };
+    return Promise.resolve({ text: new TextDecoder().decode(bytes), method: "plain-text" });
   }
 
   if (type && CSV_TYPES.has(type)) {
     // Treat each cell as potential question text; callers run this through
     // splitIntoQuestions() anyway, which is tolerant of delimiter noise.
-    return { text: new TextDecoder().decode(bytes).replace(/[,\t]/g, "\n"), method: "csv" };
+    return Promise.resolve({
+      text: new TextDecoder().decode(bytes).replace(/[,\t]/g, "\n"),
+      method: "csv",
+    });
   }
 
   // TODO(connector): route to the existing Document Processing Agent's
   // extraction endpoint for PDF/DOCX (and scanned/image-based
-  // questionnaires, which need its OCR step). Throwing a clear, typed
-  // error rather than silently returning empty text so callers can tell
-  // the user what to do instead of getting a confusing "0 questions found."
-  throw new DocumentExtractionUnsupportedError(
-    `Cannot extract text from "${filename}" (${type ?? "unknown type"}) directly — ` +
-      "this needs the platform's Document Processing Agent (PDF/DOCX/OCR pipeline), " +
-      "not yet wired into this scaffold. Ask the user to paste the questions as text, " +
-      "or upload a .txt/.csv export instead, in the meantime.",
+  // questionnaires, which need its OCR step). Rejecting with a clear,
+  // typed error rather than silently returning empty text so callers can
+  // tell the user what to do instead of getting a confusing "0 questions
+  // found." Promise.reject (not a synchronous throw) so this function
+  // stays a plain, non-async Promise-returner throughout — the test suite
+  // asserts on an actually-rejected promise, not a synchronous throw.
+  return Promise.reject(
+    new DocumentExtractionUnsupportedError(
+      `Cannot extract text from "${filename}" (${type ?? "unknown type"}) directly — ` +
+        "this needs the platform's Document Processing Agent (PDF/DOCX/OCR pipeline), " +
+        "not yet wired into this scaffold. Ask the user to paste the questions as text, " +
+        "or upload a .txt/.csv export instead, in the meantime.",
+    ),
   );
 }
 

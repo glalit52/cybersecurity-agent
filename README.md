@@ -120,28 +120,32 @@ deno task check     # type-check every function + bot module
 deno task test      # run the test suite (bot/*.test.ts, supabase/functions/_shared/**/*.test.ts)
 ```
 
-**Honesty check on how verified this actually is:** this scaffold was built
-in a sandboxed environment where `deno.land`/`jsr.io` are blocked by
-outbound network policy, so the Deno CLI itself was never installable
-there — every check up to this point was a hand-rolled `tsc --noEmit`
-invocation under Node (type-checking only, and only by manually filtering
-out Deno-specific import/global errors). That's real but limited: it
-already caught nothing wrong with `question-extraction.ts`'s original
-logic, because a type checker doesn't know a completed sentence shouldn't
-absorb the next line. Actually *running* the pure, dependency-free modules
-under Node (`node --experimental-strip-types`) caught a real bug — a
-finished question stayed "open" and silently swallowed the next unrelated
-line — which is now fixed and covered by
-`bot/question-extraction.test.ts`'s regression test.
+**Honesty check on how verified this actually is:** `deno.land` is blocked
+by this sandbox's outbound network policy, so the Deno CLI initially
+couldn't be installed the normal way — every check up to that point was a
+hand-rolled `tsc --noEmit` invocation under Node (type-checking only). A
+real bug survived that: `question-extraction.ts`'s original logic let a
+completed question silently absorb the next unrelated line, found only by
+actually *running* the function under Node
+(`node --experimental-strip-types`), not by type-checking it.
 
-The `.github/workflows/ci.yml` added here runs the four commands above
-against a real Deno CLI on every push — that's the first time this whole
-suite will actually execute. Treat the first CI run on this branch as a
-real result, not a formality: if something in the DB/Deno-specific 80% of
-the codebase (everything importing `db.ts`, `ai-gateway.ts`, the
-`Deno.serve` entrypoints) has a bug analogous to the one found by hand
-above, this is where it would surface, since none of that code has been
-executed anywhere yet — only type-checked.
+npm's `deno-bin` package turned out to work (a different host than
+`deno.land`), which got a real Deno CLI running here after all. With that,
+every check in this section — `fmt`, `lint`, `check`, `test` — has now
+actually been run against this exact code, not just type-checked:
+**`deno task check` passes clean across all 55 files (including every
+module that imports `db.ts`/`ai-gateway.ts` and all 5 `Deno.serve`
+entrypoints — the ~80% that was previously unverified), and all 27 tests
+pass.** Along the way, `deno lint` caught 22 more real findings (mostly
+`async` functions with no `await` inside — a smell worth having a linter
+for) and `deno fmt` reformatted 41 files that had never been run through
+a formatter; both are fixed. `_shared/db.ts` also switched from an
+`esm.sh` import (blocked in this sandbox) to the `npm:` specifier, which
+is the currently-recommended way to pull npm packages into a Supabase
+Edge Function regardless of that — not merely a workaround.
+
+`.github/workflows/ci.yml` runs the same four commands on every push
+going forward, so this stays true rather than rotting.
 
 ## Running locally
 

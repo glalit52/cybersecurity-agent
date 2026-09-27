@@ -35,9 +35,15 @@ export const phishingTriagePlaybook: Playbook = {
     // to the ConnectorAdapter shape, use it to pull the full message
     // (headers, attachment hashes) rather than relying on the caller to
     // have already extracted these fields.
-    const domainSignalHits = SUSPICIOUS_DOMAIN_SIGNALS.filter((s) => email.senderDomain.includes(s));
+    const domainSignalHits = SUSPICIOUS_DOMAIN_SIGNALS.filter((s) =>
+      email.senderDomain.includes(s)
+    );
     const linkCount = email.links.length;
-    const confidence = domainSignalHits.length > 0 && linkCount > 0 ? "high" : linkCount > 0 ? "medium" : "low";
+    const confidence = domainSignalHits.length > 0 && linkCount > 0
+      ? "high"
+      : linkCount > 0
+      ? "medium"
+      : "low";
 
     const { data: finding, error } = await db()
       .from("security_findings")
@@ -63,16 +69,18 @@ export const phishingTriagePlaybook: Playbook = {
       organization_id: ctx.organizationId,
       finding_id: finding.id,
       action_type: actionType,
-      description:
-        confidence === "high"
-          ? `Auto-quarantine: sender domain matches known phishing patterns (${domainSignalHits.join(", ")})`
-          : "Escalated to security team for manual review — insufficient signal for auto-action",
+      description: confidence === "high"
+        ? `Auto-quarantine: sender domain matches known phishing patterns (${
+          domainSignalHits.join(", ")
+        })`
+        : "Escalated to security team for manual review — insufficient signal for auto-action",
       status: confidence === "high" ? "proposed" : "pending_approval",
       requested_by: ctx.actorId,
     });
 
     return {
-      summary: `Phishing report triaged with ${confidence} confidence (${domainSignalHits.length} domain signal(s), ${linkCount} link(s)).`,
+      summary:
+        `Phishing report triaged with ${confidence} confidence (${domainSignalHits.length} domain signal(s), ${linkCount} link(s)).`,
       data: { confidence, domainSignalHits },
       findingsCreated: 1,
     };

@@ -14,26 +14,27 @@ import { ConnectorSignal, RemediationRequest, RemediationResult, StubConnector }
 export class MicrosoftSentinelConnector extends StubConnector {
   readonly id = "microsoft-sentinel";
 
-  override async fetchSignals(orgId: string): Promise<ConnectorSignal[]> {
+  override fetchSignals(orgId: string): Promise<ConnectorSignal[]> {
     // TODO(connector): GET /subscriptions/{sub}/resourceGroups/{rg}/providers/
     // Microsoft.OperationalInsights/workspaces/{workspace}/providers/
     // Microsoft.SecurityInsights/alerts?api-version=2023-02-01, or run a
     // saved KQL analytics-rule query and map Severity/Status onto
     // ConnectorSignal.
-    return [
+    return Promise.resolve([
       {
         connector: this.id,
         resourceRef: `sentinel-workspace/mock (${orgId})`,
         findingType: "sentinel.impossible_travel_signin",
         severity: "high",
-        summary: "Sign-in from two geographically distant locations within an implausible time window (mock data)",
+        summary:
+          "Sign-in from two geographically distant locations within an implausible time window (mock data)",
         raw: { mock: true },
         detectedAt: new Date().toISOString(),
       },
-    ];
+    ]);
   }
 
-  override async executeAction(
+  override executeAction(
     orgId: string,
     request: RemediationRequest,
   ): Promise<RemediationResult> {
@@ -41,9 +42,10 @@ export class MicrosoftSentinelConnector extends StubConnector {
     // (disable a user, revoke a session) route through the existing
     // Azure AD / Okta connector, not this one. Keep this a no-op with a
     // clear message rather than a false success.
-    return {
+    return Promise.resolve({
       success: false,
-      message: `microsoft-sentinel is detection-only for org ${orgId}; route "${request.actionType}" through the identity connector (Okta/Azure AD).`,
-    };
+      message:
+        `microsoft-sentinel is detection-only for org ${orgId}; route "${request.actionType}" through the identity connector (Okta/Azure AD).`,
+    });
   }
 }

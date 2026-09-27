@@ -61,7 +61,8 @@ export const trainingComplianceTrackerPlaybook: Playbook = {
           overdue.map((r) => ({
             request_id: request.id,
             organization_id: ctx.organizationId,
-            question_text: `User ${r.userId} has not completed required training "${r.courseId}" (due ${r.dueDate})`,
+            question_text:
+              `User ${r.userId} has not completed required training "${r.courseId}" (due ${r.dueDate})`,
             flagged_gap: true,
             gap_reason: "Training overdue as of sweep time.",
           })),

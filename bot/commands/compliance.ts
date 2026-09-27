@@ -4,7 +4,7 @@
 import type { CommandAttachment, CommandContext, CommandHandler } from "../router-types.ts";
 import { downloadSlackFile } from "../adapters/slack.ts";
 import { downloadTeamsAttachment } from "../adapters/teams.ts";
-import { extractText, DocumentExtractionUnsupportedError } from "../document-extraction.ts";
+import { DocumentExtractionUnsupportedError, extractText } from "../document-extraction.ts";
 import { splitIntoQuestions } from "../question-extraction.ts";
 import { internalHeaders } from "../internal-fetch.ts";
 
@@ -46,7 +46,7 @@ const answer: CommandHandler = async (ctx) => {
   return ctx.reply(`${result.answerText}\n\n_Confidence: ${result.confidence}_`);
 };
 
-async function downloadAttachment(
+function downloadAttachment(
   ctx: CommandContext,
   attachment: CommandAttachment,
 ): Promise<{ bytes: Uint8Array; contentType: string; filename: string }> {
@@ -57,12 +57,20 @@ async function downloadAttachment(
   // path against a real file in a single-org pilot.
   if (ctx.channel === "slack") {
     const botToken = Deno.env.get("SLACK_BOT_TOKEN");
-    if (!botToken) throw new Error("SLACK_BOT_TOKEN is not configured — cannot download the attached file.");
+    if (!botToken) {
+      return Promise.reject(
+        new Error("SLACK_BOT_TOKEN is not configured — cannot download the attached file."),
+      );
+    }
     return downloadSlackFile(attachment.downloadRef, botToken);
   }
   const botToken = Deno.env.get("TEAMS_BOT_TOKEN");
   return downloadTeamsAttachment(
-    { name: attachment.filename, contentType: attachment.contentType ?? "application/octet-stream", contentUrl: attachment.downloadRef },
+    {
+      name: attachment.filename,
+      contentType: attachment.contentType ?? "application/octet-stream",
+      contentUrl: attachment.downloadRef,
+    },
     botToken,
   );
 }
@@ -70,14 +78,18 @@ async function downloadAttachment(
 const rfpUpload: CommandHandler = async (ctx) => {
   const attachment = ctx.attachments?.[0];
   if (!attachment) {
-    return ctx.reply("Attach a file (.txt/.csv, or a questionnaire your platform can extract) with this command.");
+    return ctx.reply(
+      "Attach a file (.txt/.csv, or a questionnaire your platform can extract) with this command.",
+    );
   }
 
   let file: { bytes: Uint8Array; contentType: string; filename: string };
   try {
     file = await downloadAttachment(ctx, attachment);
   } catch (err) {
-    return ctx.reply(`❌ Could not download "${attachment.filename}": ${err instanceof Error ? err.message : err}`);
+    return ctx.reply(
+      `❌ Could not download "${attachment.filename}": ${err instanceof Error ? err.message : err}`,
+    );
   }
 
   let extracted: string;
@@ -92,10 +104,14 @@ const rfpUpload: CommandHandler = async (ctx) => {
 
   const questions = splitIntoQuestions(extracted);
   if (questions.length === 0) {
-    return ctx.reply(`Extracted "${attachment.filename}" but found no question-shaped lines in it.`);
+    return ctx.reply(
+      `Extracted "${attachment.filename}" but found no question-shaped lines in it.`,
+    );
   }
 
-  await ctx.reply(`📄 Parsed ${questions.length} question(s) from "${attachment.filename}" — answering from the evidence graph now...`);
+  await ctx.reply(
+    `📄 Parsed ${questions.length} question(s) from "${attachment.filename}" — answering from the evidence graph now...`,
+  );
 
   const result = await callAgent("run-playbook", ctx, {
     playbookId: "rfp-response-orchestrator",
@@ -119,12 +135,14 @@ const status: CommandHandler = async (ctx) => {
   );
 };
 
-const auditEvidence: CommandHandler = async (ctx) => {
+const auditEvidence: CommandHandler = (ctx) => {
   const controlId = ctx.args[0];
   if (!controlId) return ctx.reply("Usage: /audit evidence <control_id>");
   // TODO: call evidence-graph's `related` op for this control node and
   // format the owning policy/evidence/owner/system chain.
-  return ctx.reply(`TODO: fetch evidence chain for control ${controlId} from the evidence-graph service.`);
+  return ctx.reply(
+    `TODO: fetch evidence chain for control ${controlId} from the evidence-graph service.`,
+  );
 };
 
 const playbooks: CommandHandler = async (ctx) => {
@@ -132,7 +150,11 @@ const playbooks: CommandHandler = async (ctx) => {
   const list = (result.playbooks ?? []) as Array<{ id: string; title: string; trigger: string }>;
   if (list.length === 0) return ctx.reply("No playbooks registered.");
   const lines = list.map((p) => `• \`${p.id}\` (${p.trigger}) — ${p.title}`);
-  return ctx.reply(`Available Compliance playbooks:\n${lines.join("\n")}\n\nRun one with \`/compliance run <id>\`.`);
+  return ctx.reply(
+    `Available Compliance playbooks:\n${
+      lines.join("\n")
+    }\n\nRun one with \`/compliance run <id>\`.`,
+  );
 };
 
 const runPlaybookCommand: CommandHandler = async (ctx) => {
@@ -150,7 +172,9 @@ const runPlaybookCommand: CommandHandler = async (ctx) => {
   return ctx.reply(`✅ ${result.summary}`);
 };
 
-export function registerComplianceCommands(registerCommand: (name: string, handler: CommandHandler) => void) {
+export function registerComplianceCommands(
+  registerCommand: (name: string, handler: CommandHandler) => void,
+) {
   registerCommand("compliance answer", answer);
   registerCommand("compliance rfp upload", rfpUpload);
   registerCommand("compliance status", status);

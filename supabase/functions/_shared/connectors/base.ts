@@ -47,22 +47,26 @@ export interface ConnectorAdapter {
 export abstract class StubConnector implements ConnectorAdapter {
   abstract readonly id: string;
 
-  async fetchSignals(_orgId: string): Promise<ConnectorSignal[]> {
-    return [];
+  fetchSignals(_orgId: string): Promise<ConnectorSignal[]> {
+    return Promise.resolve([]);
   }
 
-  async executeAction(_orgId: string, request: RemediationRequest): Promise<RemediationResult> {
-    return {
+  executeAction(_orgId: string, request: RemediationRequest): Promise<RemediationResult> {
+    return Promise.resolve({
       success: false,
-      message: `TODO(connector): ${this.id} does not yet implement executeAction for ${request.actionType}`,
-    };
+      message:
+        `TODO(connector): ${this.id} does not yet implement executeAction for ${request.actionType}`,
+    });
   }
 
-  async verifyFact(_orgId: string, factQuery: string): Promise<{ verified: boolean; detail: string }> {
-    return {
+  verifyFact(
+    _orgId: string,
+    factQuery: string,
+  ): Promise<{ verified: boolean; detail: string }> {
+    return Promise.resolve({
       verified: false,
       detail: `TODO(connector): ${this.id} does not yet implement verifyFact for "${factQuery}"`,
-    };
+    });
   }
 }
 

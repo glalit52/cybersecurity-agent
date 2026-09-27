@@ -33,7 +33,11 @@ Deno.test("StubConnector default methods report unimplemented rather than preten
   const signals = await connector.fetchSignals("org-1");
   assertEquals(signals, []);
 
-  const action = await connector.executeAction("org-1", { actionType: "revoke_access", resourceRef: "r", parameters: {} });
+  const action = await connector.executeAction("org-1", {
+    actionType: "revoke_access",
+    resourceRef: "r",
+    parameters: {},
+  });
   assertEquals(action.success, false);
 
   const verification = await connector.verifyFact("org-1", "some fact");

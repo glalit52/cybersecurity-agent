@@ -23,11 +23,13 @@ export const soc2EvidenceFreshnessSweepPlaybook: Playbook = {
       .eq("organization_id", ctx.organizationId)
       .eq("node_type", "evidence");
 
-    const stale = (nodes ?? []).filter((n: { current_as_of: string | null; freshness_days: number }) => {
-      if (!n.current_as_of) return true;
-      const ageDays = (Date.now() - new Date(n.current_as_of).getTime()) / (1000 * 60 * 60 * 24);
-      return ageDays > n.freshness_days;
-    });
+    const stale = (nodes ?? []).filter(
+      (n: { current_as_of: string | null; freshness_days: number }) => {
+        if (!n.current_as_of) return true;
+        const ageDays = (Date.now() - new Date(n.current_as_of).getTime()) / (1000 * 60 * 60 * 24);
+        return ageDays > n.freshness_days;
+      },
+    );
 
     let refreshed = 0;
     let gapsFlagged = 0;
@@ -57,7 +59,8 @@ export const soc2EvidenceFreshnessSweepPlaybook: Playbook = {
     }
 
     return {
-      summary: `${stale.length} stale evidence node(s) found; ${refreshed} auto-refreshed, ${gapsFlagged} escalated to owners.`,
+      summary:
+        `${stale.length} stale evidence node(s) found; ${refreshed} auto-refreshed, ${gapsFlagged} escalated to owners.`,
       data: { escalated },
       gapsFlagged,
     };

@@ -23,8 +23,9 @@ export const dormantPrivilegedAccessPlaybook: Playbook = {
     // Identity/infra connectors (AWS IAM via aws-security-hub, Okta/Azure AD
     // once those connectors are ported into this ConnectorAdapter shape)
     // surface unused-access signals. Only ones this org has enabled.
-    const identityConnectors = await getEnabledConnectors(ctx.organizationId, (id) =>
-      ["aws-security-hub", "okta", "azure-ad"].some((k) => id.includes(k))
+    const identityConnectors = await getEnabledConnectors(
+      ctx.organizationId,
+      (id) => ["aws-security-hub", "okta", "azure-ad"].some((k) => id.includes(k)),
     );
 
     let findingsCreated = 0;
@@ -33,9 +34,11 @@ export const dormantPrivilegedAccessPlaybook: Playbook = {
     for (const connector of identityConnectors) {
       const signals = await connector.fetchSignals(ctx.organizationId);
       for (const signal of signals) {
-        if (!signal.findingType.includes("unused") && !signal.findingType.includes("dormant")) continue;
+        if (!signal.findingType.includes("unused") && !signal.findingType.includes("dormant")) {
+          continue;
+        }
 
-        const { data, error } = await db()
+        const { error } = await db()
           .from("security_findings")
           .insert({
             organization_id: ctx.organizationId,
@@ -46,9 +49,7 @@ export const dormantPrivilegedAccessPlaybook: Playbook = {
             summary: `${signal.summary} (dormancy threshold: ${thresholdDays}d)`,
             evidence: signal.raw,
             detected_at: signal.detectedAt,
-          })
-          .select()
-          .single();
+          });
 
         if (error) {
           console.error(`dormant-privileged-access: failed to persist finding: ${error.message}`);
@@ -60,7 +61,8 @@ export const dormantPrivilegedAccessPlaybook: Playbook = {
     }
 
     return {
-      summary: `Reviewed ${identityConnectors.length} identity connector(s); ${findingsCreated} dormant privileged access finding(s) created.`,
+      summary:
+        `Reviewed ${identityConnectors.length} identity connector(s); ${findingsCreated} dormant privileged access finding(s) created.`,
       data: { thresholdDays, flagged },
       findingsCreated,
     };

@@ -8,7 +8,7 @@
 
 import { db } from "./db.ts";
 import { auditEntry, writeAuditLog } from "./audit.ts";
-import { generateEmbedding, AiGatewayUnavailableError } from "./ai-gateway.ts";
+import { AiGatewayUnavailableError, generateEmbedding } from "./ai-gateway.ts";
 import { EvidenceNode, EvidenceNodeType } from "./types.ts";
 
 interface UpsertNodeRequest {
@@ -108,7 +108,9 @@ export async function semanticSearchByText(
     // No vector hits (e.g. nothing embedded yet) — fall through to keyword search.
   } catch (err) {
     if (!(err instanceof AiGatewayUnavailableError)) throw err;
-    console.error(`evidence-graph: semantic search unavailable, falling back to keyword match: ${err.message}`);
+    console.error(
+      `evidence-graph: semantic search unavailable, falling back to keyword match: ${err.message}`,
+    );
   }
 
   return { results: await keywordSearch(organizationId, queryText, limit), usedFallback: true };
@@ -126,13 +128,20 @@ export async function semanticSearchByEmbedding(
   });
 
   if (error) {
-    console.error("semanticSearchByEmbedding failed (has migration 0002's RPC been applied?):", error.message);
+    console.error(
+      "semanticSearchByEmbedding failed (has migration 0002's RPC been applied?):",
+      error.message,
+    );
     return [];
   }
   return (data ?? []).map(mapNodeRow);
 }
 
-async function keywordSearch(organizationId: string, queryText: string, limit: number): Promise<EvidenceNode[]> {
+async function keywordSearch(
+  organizationId: string,
+  queryText: string,
+  limit: number,
+): Promise<EvidenceNode[]> {
   const keywords = queryText
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, "")
@@ -153,7 +162,11 @@ async function keywordSearch(organizationId: string, queryText: string, limit: n
 }
 
 /** Walk evidence_edges from a node to find related controls/policies/systems/owners. */
-export async function relatedNodes(organizationId: string, nodeId: string, depth = 2): Promise<EvidenceNode[]> {
+export async function relatedNodes(
+  organizationId: string,
+  nodeId: string,
+  depth = 2,
+): Promise<EvidenceNode[]> {
   // Simple BFS using evidence_edges; fine at this scale (no separate graph DB).
   let frontier = [nodeId];
   const visited = new Set<string>([nodeId]);

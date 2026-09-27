@@ -8,12 +8,12 @@ import { ConnectorSignal, RemediationRequest, RemediationResult, StubConnector }
 export class AwsSecurityHubConnector extends StubConnector {
   readonly id = "aws-security-hub";
 
-  override async fetchSignals(orgId: string): Promise<ConnectorSignal[]> {
+  override fetchSignals(orgId: string): Promise<ConnectorSignal[]> {
     // TODO(connector): call AWS Security Hub GetFindings for this org's
     // configured account/role, map ComplianceStatus + Severity.Label onto
     // ConnectorSignal. Returning representative mock data for now so the
     // detect -> investigate -> remediate pipeline is testable end-to-end.
-    return [
+    return Promise.resolve([
       {
         connector: this.id,
         resourceRef: `arn:aws:iam::mock:role/example-role (${orgId})`,
@@ -23,30 +23,32 @@ export class AwsSecurityHubConnector extends StubConnector {
         raw: { mock: true },
         detectedAt: new Date().toISOString(),
       },
-    ];
+    ]);
   }
 
-  override async executeAction(
+  override executeAction(
     orgId: string,
     request: RemediationRequest,
   ): Promise<RemediationResult> {
     // TODO(connector): call the AWS SDK (DeactivateMFADevice, DeleteAccessKey,
     // UpdateAssumeRolePolicy, etc.) depending on request.actionType.
-    return {
+    return Promise.resolve({
       success: false,
-      message: `TODO(connector): aws-security-hub cannot yet execute "${request.actionType}" for org ${orgId} — no AWS credentials configured.`,
-    };
+      message:
+        `TODO(connector): aws-security-hub cannot yet execute "${request.actionType}" for org ${orgId} — no AWS credentials configured.`,
+    });
   }
 
-  override async verifyFact(
+  override verifyFact(
     orgId: string,
     factQuery: string,
   ): Promise<{ verified: boolean; detail: string }> {
     // TODO(connector): used by the Compliance Agent, e.g. "is S3 bucket X
     // encrypted at rest" -> GetBucketEncryption.
-    return {
+    return Promise.resolve({
       verified: false,
-      detail: `TODO(connector): aws-security-hub cannot yet verify "${factQuery}" for org ${orgId}.`,
-    };
+      detail:
+        `TODO(connector): aws-security-hub cannot yet verify "${factQuery}" for org ${orgId}.`,
+    });
   }
 }

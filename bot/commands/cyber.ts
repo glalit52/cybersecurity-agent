@@ -47,7 +47,9 @@ const findings: CommandHandler = async (ctx) => {
   if (list.length === 0) return ctx.reply("No findings match.");
   const lines = list
     .slice(0, 10)
-    .map((f: { id: string; severity: string; summary: string }) => `• [${f.severity}] ${f.summary} (${f.id})`);
+    .map((f: { id: string; severity: string; summary: string }) =>
+      `• [${f.severity}] ${f.summary} (${f.id})`
+    );
   return ctx.reply(lines.join("\n"));
 };
 
@@ -57,7 +59,8 @@ const investigate: CommandHandler = async (ctx) => {
   const result = await callAgent("investigate", ctx, { findingId });
   return ctx.reply(
     `🕵️ ${result.explanation}\n\nRelated evidence: ${
-      (result.relatedEvidence ?? []).map((n: { title: string }) => n.title).join(", ") || "none found"
+      (result.relatedEvidence ?? []).map((n: { title: string }) => n.title).join(", ") ||
+      "none found"
     }`,
   );
 };
@@ -88,7 +91,9 @@ const report: CommandHandler = async (ctx) => {
     .map(([sev, n]) => `${sev}: ${n}`)
     .join(", ");
   return ctx.reply(
-    `📊 ${period} posture report — ${result.totalFindings} finding(s). ${bySeverity || "no findings"}.`,
+    `📊 ${period} posture report — ${result.totalFindings} finding(s). ${
+      bySeverity || "no findings"
+    }.`,
   );
 };
 
@@ -97,7 +102,9 @@ const playbooks: CommandHandler = async (ctx) => {
   const list = (result.playbooks ?? []) as Array<{ id: string; title: string; trigger: string }>;
   if (list.length === 0) return ctx.reply("No playbooks registered.");
   const lines = list.map((p) => `• \`${p.id}\` (${p.trigger}) — ${p.title}`);
-  return ctx.reply(`Available Cybersecurity playbooks:\n${lines.join("\n")}\n\nRun one with \`/cyber run <id>\`.`);
+  return ctx.reply(
+    `Available Cybersecurity playbooks:\n${lines.join("\n")}\n\nRun one with \`/cyber run <id>\`.`,
+  );
 };
 
 const runPlaybookCommand: CommandHandler = async (ctx) => {
@@ -108,7 +115,9 @@ const runPlaybookCommand: CommandHandler = async (ctx) => {
   return ctx.reply(`✅ ${result.summary}`);
 };
 
-export function registerCyberCommands(registerCommand: (name: string, handler: CommandHandler) => void) {
+export function registerCyberCommands(
+  registerCommand: (name: string, handler: CommandHandler) => void,
+) {
   registerCommand("cyber scan", scan);
   registerCommand("cyber findings", findings);
   registerCommand("cyber investigate", investigate);

@@ -59,7 +59,11 @@ export const internalAuditControlTestingPlaybook: Playbook = {
         continue;
       }
       const verification = await connector.verifyFact(ctx.organizationId, control.title);
-      results.push({ system: system.title, pass: verification.verified, detail: verification.detail });
+      results.push({
+        system: system.title,
+        pass: verification.verified,
+        detail: verification.detail,
+      });
     }
 
     const failures = results.filter((r) => !r.pass);
@@ -96,7 +100,9 @@ export const internalAuditControlTestingPlaybook: Playbook = {
     }
 
     return {
-      summary: `Tested control "${control.title}" against ${results.length} system(s): ${results.length - failures.length} pass, ${failures.length} fail.`,
+      summary: `Tested control "${control.title}" against ${results.length} system(s): ${
+        results.length - failures.length
+      } pass, ${failures.length} fail.`,
       data: { results },
       gapsFlagged: failures.length,
     };

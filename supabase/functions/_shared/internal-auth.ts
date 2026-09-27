@@ -26,7 +26,9 @@ export function checkInternalAuth(req: Request): Response | null {
   const expected = Deno.env.get("INTERNAL_API_SECRET");
   if (!expected) {
     console.error("INTERNAL_API_SECRET is not configured — refusing all requests until it is set.");
-    return Response.json({ error: "Service misconfigured: INTERNAL_API_SECRET is not set." }, { status: 500 });
+    return Response.json({ error: "Service misconfigured: INTERNAL_API_SECRET is not set." }, {
+      status: 500,
+    });
   }
   const provided = req.headers.get(HEADER);
   if (provided !== expected) {

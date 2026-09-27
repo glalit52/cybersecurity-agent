@@ -19,7 +19,10 @@ export const identityAnomalyTriagePlaybook: Playbook = {
   async run(ctx: PlaybookContext): Promise<PlaybookResult> {
     const connector = await getEnabledConnector(ctx.organizationId, "microsoft-sentinel");
     if (!connector) {
-      return { summary: "microsoft-sentinel is not enabled for this org (see /cyber connectors).", data: {} };
+      return {
+        summary: "microsoft-sentinel is not enabled for this org (see /cyber connectors).",
+        data: {},
+      };
     }
 
     const signals = await connector.fetchSignals(ctx.organizationId);

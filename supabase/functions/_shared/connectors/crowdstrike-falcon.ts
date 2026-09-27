@@ -12,10 +12,10 @@ import { ConnectorSignal, RemediationRequest, RemediationResult, StubConnector }
 export class CrowdStrikeFalconConnector extends StubConnector {
   readonly id = "crowdstrike-falcon";
 
-  override async fetchSignals(orgId: string): Promise<ConnectorSignal[]> {
+  override fetchSignals(orgId: string): Promise<ConnectorSignal[]> {
     // TODO(connector): GET /alerts/queries/alerts/v1 + /alerts/entities/alerts/v2,
     // map Falcon severity (1-5 or Critical/High/Medium/Low) onto ConnectorSignal.
-    return [
+    return Promise.resolve([
       {
         connector: this.id,
         resourceRef: `falcon-host/mock-endpoint-01 (${orgId})`,
@@ -25,10 +25,10 @@ export class CrowdStrikeFalconConnector extends StubConnector {
         raw: { mock: true },
         detectedAt: new Date().toISOString(),
       },
-    ];
+    ]);
   }
 
-  override async executeAction(
+  override executeAction(
     orgId: string,
     request: RemediationRequest,
   ): Promise<RemediationResult> {
@@ -38,14 +38,16 @@ export class CrowdStrikeFalconConnector extends StubConnector {
     if (request.actionType === "notify_owner" || request.actionType === "open_ticket") {
       // These are always safe to fall through to a generic non-connector
       // path (Slack DM / Jira ticket) rather than needing Falcon itself.
-      return {
+      return Promise.resolve({
         success: false,
-        message: `crowdstrike-falcon does not handle "${request.actionType}" directly — route via the notification/ticketing layer.`,
-      };
+        message:
+          `crowdstrike-falcon does not handle "${request.actionType}" directly — route via the notification/ticketing layer.`,
+      });
     }
-    return {
+    return Promise.resolve({
       success: false,
-      message: `TODO(connector): crowdstrike-falcon cannot yet execute "${request.actionType}" for org ${orgId} — no Falcon API credentials configured.`,
-    };
+      message:
+        `TODO(connector): crowdstrike-falcon cannot yet execute "${request.actionType}" for org ${orgId} — no Falcon API credentials configured.`,
+    });
   }
 }

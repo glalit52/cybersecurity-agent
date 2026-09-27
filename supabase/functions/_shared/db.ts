@@ -1,7 +1,12 @@
 // Shared Supabase client factory. Extracted so every agent/playbook module
 // doesn't redefine its own createClient() call.
-
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+//
+// npm: specifier (not esm.sh) — this is the currently-recommended way to
+// pull npm packages into a Supabase Edge Function: it resolves through
+// Deno's own npm compat layer against the real registry rather than
+// depending on esm.sh's CDN re-bundling, which is more reliable and is
+// what recent Supabase Edge Function examples use.
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 let cached: SupabaseClient | null = null;
 

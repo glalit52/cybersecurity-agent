@@ -48,7 +48,13 @@ export const vendorRiskAssessmentPlaybook: Playbook = {
 
     await db()
       .from("compliance_questions")
-      .insert(questions.map((q) => ({ request_id: request.id, organization_id: ctx.organizationId, question_text: q })));
+      .insert(
+        questions.map((q) => ({
+          request_id: request.id,
+          organization_id: ctx.organizationId,
+          question_text: q,
+        })),
+      );
 
     // TODO(connector): send the questionnaire to vendorContact via the
     // existing Outlook/Gmail connector, and later parse their reply back
@@ -56,7 +62,8 @@ export const vendorRiskAssessmentPlaybook: Playbook = {
     // just in the opposite direction).
 
     return {
-      summary: `Vendor risk assessment created for "${vendorName}" with ${questions.length} question(s) — send-out is a TODO(connector) pending email integration.`,
+      summary:
+        `Vendor risk assessment created for "${vendorName}" with ${questions.length} question(s) — send-out is a TODO(connector) pending email integration.`,
       data: { requestId: request.id, vendorName },
     };
   },

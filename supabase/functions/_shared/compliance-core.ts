@@ -15,9 +15,14 @@ import { db } from "./db.ts";
 import { auditEntry, writeAuditLog } from "./audit.ts";
 import { createApprovalRequest } from "./approvals.ts";
 import { getEnabledConnector } from "./connector-configs.ts";
-import { semanticSearchByText, isStale } from "./evidence-graph-core.ts";
-import { generateCompletion, AiGatewayUnavailableError } from "./ai-gateway.ts";
-import { ApprovalRequest, ComplianceQuestion, ComplianceRequestType, EvidenceNode } from "./types.ts";
+import { isStale, semanticSearchByText } from "./evidence-graph-core.ts";
+import { AiGatewayUnavailableError, generateCompletion } from "./ai-gateway.ts";
+import {
+  ApprovalRequest,
+  ComplianceQuestion,
+  ComplianceRequestType,
+  EvidenceNode,
+} from "./types.ts";
 
 // ---------------------------------------------------------------------
 // Ingest
@@ -142,11 +147,17 @@ export async function answerQuestion(
   if (updateError) throw new Error(`Failed to update question: ${updateError.message}`);
 
   await writeAuditLog(
-    auditEntry(orgId, actorId, flaggedGap ? "compliance.flagged_gap" : "compliance.answered", questionId, {
-      evidenceCount: candidates.length,
-      confidence,
-      retrievalUsedFallback,
-    }),
+    auditEntry(
+      orgId,
+      actorId,
+      flaggedGap ? "compliance.flagged_gap" : "compliance.answered",
+      questionId,
+      {
+        evidenceCount: candidates.length,
+        confidence,
+        retrievalUsedFallback,
+      },
+    ),
   );
 
   if (flaggedGap) {
@@ -179,9 +190,13 @@ async function draftAnswer(
       .map((c, i) => {
         const verification = verifications.find((v) => v.node.id === c.id);
         const verificationNote = verification
-          ? ` [live verification: ${verification.verified ? "confirmed" : "could not confirm"} — ${verification.detail}]`
+          ? ` [live verification: ${
+            verification.verified ? "confirmed" : "could not confirm"
+          } — ${verification.detail}]`
           : "";
-        return `[${i + 1}] ${c.title} (${c.nodeType}): ${c.content ?? "(no content)"}${verificationNote}`;
+        return `[${i + 1}] ${c.title} (${c.nodeType}): ${
+          c.content ?? "(no content)"
+        }${verificationNote}`;
       })
       .join("\n\n");
 
@@ -198,7 +213,9 @@ async function draftAnswer(
     });
   } catch (err) {
     if (!(err instanceof AiGatewayUnavailableError)) throw err;
-    console.error(`compliance-core: answer drafting unavailable, falling back to evidence listing: ${err.message}`);
+    console.error(
+      `compliance-core: answer drafting unavailable, falling back to evidence listing: ${err.message}`,
+    );
     const citations = candidates.map((c, i) => `[${i + 1}] ${c.title}`).join("; ");
     return (
       `AI Gateway unavailable — showing matched evidence without a generated narrative. ` +
@@ -207,12 +224,14 @@ async function draftAnswer(
   }
 }
 
-async function notifyControlOwner(orgId: string, candidates: EvidenceNode[]) {
+function notifyControlOwner(orgId: string, candidates: EvidenceNode[]) {
   const ownerIds = candidates.map((c) => c.ownerId).filter((id): id is string => Boolean(id));
   if (ownerIds.length === 0) return;
   // TODO: post a Slack/Teams DM to each control owner via the existing bot
   // layer notifying them their evidence is missing/stale for a live request.
-  console.log(`TODO(bot): notify control owners ${ownerIds.join(", ")} in org ${orgId} of a compliance gap.`);
+  console.log(
+    `TODO(bot): notify control owners ${ownerIds.join(", ")} in org ${orgId} of a compliance gap.`,
+  );
 }
 
 // ---------------------------------------------------------------------
@@ -257,4 +276,3 @@ function mapQuestionRow(row: any): ComplianceQuestion {
     gapReason: row.gap_reason,
   };
 }
-

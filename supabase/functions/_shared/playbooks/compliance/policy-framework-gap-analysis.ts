@@ -74,7 +74,8 @@ export const policyFrameworkGapAnalysisPlaybook: Playbook = {
     }
 
     return {
-      summary: `${frameworkId.toUpperCase()}: ${covered.length}/${controls.length} controls have matching evidence; ${gaps.length} gap(s) logged.`,
+      summary:
+        `${frameworkId.toUpperCase()}: ${covered.length}/${controls.length} controls have matching evidence; ${gaps.length} gap(s) logged.`,
       data: { frameworkId, covered, gaps },
       gapsFlagged: gaps.length,
     };

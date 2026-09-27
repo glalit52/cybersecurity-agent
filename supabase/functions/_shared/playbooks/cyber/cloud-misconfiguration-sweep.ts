@@ -20,7 +20,10 @@ export const cloudMisconfigurationSweepPlaybook: Playbook = {
   async run(ctx: PlaybookContext): Promise<PlaybookResult> {
     const connector = await getEnabledConnector(ctx.organizationId, "aws-security-hub");
     if (!connector) {
-      return { summary: "aws-security-hub is not enabled for this org (see /cyber connectors).", data: {} };
+      return {
+        summary: "aws-security-hub is not enabled for this org (see /cyber connectors).",
+        data: {},
+      };
     }
 
     const signals = await connector.fetchSignals(ctx.organizationId);

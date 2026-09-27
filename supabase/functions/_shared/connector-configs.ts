@@ -54,7 +54,9 @@ export async function enableConnector(
       { onConflict: "organization_id,connector_type" },
     );
   if (error) throw new Error(`Failed to enable connector "${connectorType}": ${error.message}`);
-  await writeAuditLog(auditEntry(organizationId, opts.actorId ?? null, "connector.enabled", connectorType, {}));
+  await writeAuditLog(
+    auditEntry(organizationId, opts.actorId ?? null, "connector.enabled", connectorType, {}),
+  );
 }
 
 export async function disableConnector(
@@ -77,7 +79,10 @@ export async function getEnabledConnectorIds(organizationId: string): Promise<Se
 }
 
 /** Returns the connector adapter only if this org has enabled it; null otherwise (never a silent no-op). */
-export async function getEnabledConnector(organizationId: string, connectorId: string): Promise<ConnectorAdapter | null> {
+export async function getEnabledConnector(
+  organizationId: string,
+  connectorId: string,
+): Promise<ConnectorAdapter | null> {
   const enabledIds = await getEnabledConnectorIds(organizationId);
   if (!enabledIds.has(connectorId)) return null;
   return getConnector(connectorId) ?? null;

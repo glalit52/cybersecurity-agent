@@ -4,11 +4,11 @@
 // compliance-core.ts and the Cybersecurity Agent's investigate() step.
 
 import {
-  upsertNode,
-  linkNodes,
-  semanticSearchByText,
-  relatedNodes,
   isStale,
+  linkNodes,
+  relatedNodes,
+  semanticSearchByText,
+  upsertNode,
 } from "../_shared/evidence-graph-core.ts";
 import { checkInternalAuth } from "../_shared/internal-auth.ts";
 
@@ -50,6 +50,8 @@ Deno.serve(async (req: Request) => {
     }
   } catch (err) {
     console.error("evidence-graph error:", err);
-    return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    return Response.json({ error: err instanceof Error ? err.message : String(err) }, {
+      status: 500,
+    });
   }
 });

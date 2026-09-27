@@ -56,7 +56,9 @@ Deno.serve(async (req: Request) => {
   }
 
   const due = (scheduled ?? []).filter((s: { last_run_at: string | null }) => isDue(s.last_run_at));
-  const results: Array<{ organizationId: string; playbookId: string; ok: boolean; error?: string }> = [];
+  const results: Array<
+    { organizationId: string; playbookId: string; ok: boolean; error?: string }
+  > = [];
 
   for (const row of due) {
     try {

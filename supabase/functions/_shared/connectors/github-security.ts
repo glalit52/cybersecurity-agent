@@ -7,10 +7,10 @@ import { ConnectorSignal, RemediationRequest, RemediationResult, StubConnector }
 export class GitHubSecurityConnector extends StubConnector {
   readonly id = "github-security";
 
-  override async fetchSignals(orgId: string): Promise<ConnectorSignal[]> {
+  override fetchSignals(orgId: string): Promise<ConnectorSignal[]> {
     // TODO(connector): GET /orgs/{org}/secret-scanning/alerts and
     // /orgs/{org}/dependabot/alerts, map severity onto ConnectorSignal.
-    return [
+    return Promise.resolve([
       {
         connector: this.id,
         resourceRef: `github.com/mock-org/mock-repo (${orgId})`,
@@ -20,18 +20,19 @@ export class GitHubSecurityConnector extends StubConnector {
         raw: { mock: true },
         detectedAt: new Date().toISOString(),
       },
-    ];
+    ]);
   }
 
-  override async executeAction(
+  override executeAction(
     orgId: string,
     request: RemediationRequest,
   ): Promise<RemediationResult> {
     // TODO(connector): e.g. revoke a leaked token via the issuing service,
     // or open a remediation PR / issue via the GitHub API.
-    return {
+    return Promise.resolve({
       success: false,
-      message: `TODO(connector): github-security cannot yet execute "${request.actionType}" for org ${orgId}.`,
-    };
+      message:
+        `TODO(connector): github-security cannot yet execute "${request.actionType}" for org ${orgId}.`,
+    });
   }
 }

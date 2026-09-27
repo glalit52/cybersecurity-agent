@@ -23,7 +23,10 @@ export const endpointThreatContainmentPlaybook: Playbook = {
   async run(ctx: PlaybookContext): Promise<PlaybookResult> {
     const connector = await getEnabledConnector(ctx.organizationId, "crowdstrike-falcon");
     if (!connector) {
-      return { summary: "crowdstrike-falcon is not enabled for this org (see /cyber connectors).", data: {} };
+      return {
+        summary: "crowdstrike-falcon is not enabled for this org (see /cyber connectors).",
+        data: {},
+      };
     }
 
     const signals = (await connector.fetchSignals(ctx.organizationId)).filter((s) =>
@@ -85,7 +88,8 @@ export const endpointThreatContainmentPlaybook: Playbook = {
     }
 
     return {
-      summary: `${findingsCreated} high/critical endpoint detection(s); ${containmentRequests} containment request(s) sent for approval.`,
+      summary:
+        `${findingsCreated} high/critical endpoint detection(s); ${containmentRequests} containment request(s) sent for approval.`,
       data: {},
       findingsCreated,
     };

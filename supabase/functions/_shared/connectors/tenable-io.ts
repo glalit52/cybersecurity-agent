@@ -13,11 +13,11 @@ import { ConnectorSignal, RemediationRequest, RemediationResult, StubConnector }
 export class TenableIoConnector extends StubConnector {
   readonly id = "tenable-io";
 
-  override async fetchSignals(orgId: string): Promise<ConnectorSignal[]> {
+  override fetchSignals(orgId: string): Promise<ConnectorSignal[]> {
     // TODO(connector): GET /workbenches/vulnerabilities?date_range=1, map
     // severity (Info/Low/Medium/High/Critical) onto ConnectorSignal, and
     // set resourceRef to the affected asset's UUID/hostname.
-    return [
+    return Promise.resolve([
       {
         connector: this.id,
         resourceRef: `tenable-asset/mock-host-01 (${orgId})`,
@@ -27,19 +27,20 @@ export class TenableIoConnector extends StubConnector {
         raw: { mock: true },
         detectedAt: new Date().toISOString(),
       },
-    ];
+    ]);
   }
 
-  override async executeAction(
+  override executeAction(
     orgId: string,
     request: RemediationRequest,
   ): Promise<RemediationResult> {
     // Tenable reports vulnerabilities but doesn't patch them; remediation
     // here is realistically "open a ticket for the asset owner", which
     // routes through the ticketing layer, not this connector.
-    return {
+    return Promise.resolve({
       success: false,
-      message: `tenable-io is detection-only for org ${orgId}; route "${request.actionType}" through open_ticket/notify_owner.`,
-    };
+      message:
+        `tenable-io is detection-only for org ${orgId}; route "${request.actionType}" through open_ticket/notify_owner.`,
+    });
   }
 }

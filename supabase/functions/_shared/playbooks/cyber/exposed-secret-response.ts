@@ -20,7 +20,10 @@ export const exposedSecretResponsePlaybook: Playbook = {
   async run(ctx: PlaybookContext): Promise<PlaybookResult> {
     const connector = await getEnabledConnector(ctx.organizationId, "github-security");
     if (!connector) {
-      return { summary: "github-security is not enabled for this org (see /cyber connectors).", data: {} };
+      return {
+        summary: "github-security is not enabled for this org (see /cyber connectors).",
+        data: {},
+      };
     }
 
     const signals = (await connector.fetchSignals(ctx.organizationId)).filter((s) =>
@@ -64,7 +67,8 @@ export const exposedSecretResponsePlaybook: Playbook = {
     }
 
     return {
-      summary: `${findingsCreated} exposed secret(s) detected; ${remediationsProposed} rotation(s) proposed.`,
+      summary:
+        `${findingsCreated} exposed secret(s) detected; ${remediationsProposed} rotation(s) proposed.`,
       data: {},
       findingsCreated,
     };

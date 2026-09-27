@@ -80,12 +80,14 @@ export const regulatoryChangeMonitorPlaybook: Playbook = {
       await db().from("compliance_questions").insert({
         request_id: request.id,
         organization_id: ctx.organizationId,
-        question_text: `Does our current implementation of [${affectedTitles}] satisfy: ${update.summary}`,
+        question_text:
+          `Does our current implementation of [${affectedTitles}] satisfy: ${update.summary}`,
       });
     }
 
     return {
-      summary: `${updates.length} regulatory update(s) reviewed for industry "${industry}"; ${requestsOpened} governance review(s) opened.`,
+      summary:
+        `${updates.length} regulatory update(s) reviewed for industry "${industry}"; ${requestsOpened} governance review(s) opened.`,
       data: { industry, trackedTerms },
     };
   },

@@ -8,7 +8,7 @@
 // contract review, training compliance).
 
 import { db } from "../_shared/db.ts";
-import { createRequest, answerQuestion, routeForApproval } from "../_shared/compliance-core.ts";
+import { answerQuestion, createRequest, routeForApproval } from "../_shared/compliance-core.ts";
 import "../_shared/connectors/register-all.ts";
 import { listPlaybooks, runPlaybook } from "../_shared/playbooks/base.ts";
 import "../_shared/playbooks/register-all.ts";
@@ -16,7 +16,13 @@ import { checkInternalAuth } from "../_shared/internal-auth.ts";
 import { ComplianceRequestType } from "../_shared/types.ts";
 
 interface ComplianceAgentRequest {
-  action: "create-request" | "answer" | "status" | "route-approval" | "list-playbooks" | "run-playbook";
+  action:
+    | "create-request"
+    | "answer"
+    | "status"
+    | "route-approval"
+    | "list-playbooks"
+    | "run-playbook";
   organizationId: string;
   actorId: string | null;
   params: Record<string, unknown>;
@@ -43,7 +49,9 @@ Deno.serve(async (req: Request) => {
           ),
         );
       case "answer":
-        return Response.json(await answerQuestion(organizationId, actorId, String(params.questionId)));
+        return Response.json(
+          await answerQuestion(organizationId, actorId, String(params.questionId)),
+        );
       case "status": {
         const { data: request } = await db()
           .from("compliance_requests")
@@ -54,7 +62,9 @@ Deno.serve(async (req: Request) => {
         return Response.json({ request });
       }
       case "route-approval":
-        return Response.json(await routeForApproval(organizationId, actorId, String(params.questionId)));
+        return Response.json(
+          await routeForApproval(organizationId, actorId, String(params.questionId)),
+        );
       case "list-playbooks":
         return Response.json({
           playbooks: listPlaybooks("compliance").map((p) => ({
@@ -73,6 +83,8 @@ Deno.serve(async (req: Request) => {
     }
   } catch (err) {
     console.error("compliance-agent error:", err);
-    return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    return Response.json({ error: err instanceof Error ? err.message : String(err) }, {
+      status: 500,
+    });
   }
 });

@@ -1,15 +1,23 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@^1.0.0";
-import { extractText, DocumentExtractionUnsupportedError } from "./document-extraction.ts";
+import { DocumentExtractionUnsupportedError, extractText } from "./document-extraction.ts";
 
 const enc = new TextEncoder();
 
 Deno.test("extracts plain text by content type", async () => {
-  const result = await extractText(enc.encode("Do you encrypt data?\nDo you have SOC2?"), "text/plain", "q.txt");
+  const result = await extractText(
+    enc.encode("Do you encrypt data?\nDo you have SOC2?"),
+    "text/plain",
+    "q.txt",
+  );
   assertEquals(result, { text: "Do you encrypt data?\nDo you have SOC2?", method: "plain-text" });
 });
 
 Deno.test("extracts CSV, normalizing delimiters to newlines", async () => {
-  const result = await extractText(enc.encode("Q1,Q2\nDo you encrypt?,Do you audit?"), "text/csv", "q.csv");
+  const result = await extractText(
+    enc.encode("Q1,Q2\nDo you encrypt?,Do you audit?"),
+    "text/csv",
+    "q.csv",
+  );
   assertEquals(result.method, "csv");
   assertEquals(result.text, "Q1\nQ2\nDo you encrypt?\nDo you audit?");
 });

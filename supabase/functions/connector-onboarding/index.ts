@@ -7,7 +7,11 @@
 
 import "../_shared/connectors/register-all.ts";
 import { listConnectors } from "../_shared/connectors/base.ts";
-import { listConnectorConfigs, enableConnector, disableConnector } from "../_shared/connector-configs.ts";
+import {
+  disableConnector,
+  enableConnector,
+  listConnectorConfigs,
+} from "../_shared/connector-configs.ts";
 import { checkInternalAuth } from "../_shared/internal-auth.ts";
 
 interface OnboardingRequest {
@@ -72,6 +76,8 @@ Deno.serve(async (req: Request) => {
     }
   } catch (err) {
     console.error("connector-onboarding error:", err);
-    return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    return Response.json({ error: err instanceof Error ? err.message : String(err) }, {
+      status: 500,
+    });
   }
 });

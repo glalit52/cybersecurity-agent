@@ -40,19 +40,20 @@ export class SiemWebhookConnector extends StubConnector {
     return "medium";
   }
 
-  override async fetchSignals(_orgId: string): Promise<ConnectorSignal[]> {
+  override fetchSignals(_orgId: string): Promise<ConnectorSignal[]> {
     // Push-based: signals arrive via normalizeAlert() from the webhook
     // ingest endpoint, not polled here.
-    return [];
+    return Promise.resolve([]);
   }
 
-  override async executeAction(
+  override executeAction(
     orgId: string,
     request: RemediationRequest,
   ): Promise<RemediationResult> {
-    return {
+    return Promise.resolve({
       success: false,
-      message: `siem-webhook is detection-only; remediation for "${request.actionType}" must go through the owning connector (org ${orgId}).`,
-    };
+      message:
+        `siem-webhook is detection-only; remediation for "${request.actionType}" must go through the owning connector (org ${orgId}).`,
+    });
   }
 }

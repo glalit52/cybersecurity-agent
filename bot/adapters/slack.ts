@@ -103,9 +103,12 @@ export async function downloadSlackFile(
   fileId: string,
   botToken: string,
 ): Promise<{ bytes: Uint8Array; contentType: string; filename: string }> {
-  const infoRes = await fetch(`https://slack.com/api/files.info?file=${encodeURIComponent(fileId)}`, {
-    headers: { authorization: `Bearer ${botToken}` },
-  });
+  const infoRes = await fetch(
+    `https://slack.com/api/files.info?file=${encodeURIComponent(fileId)}`,
+    {
+      headers: { authorization: `Bearer ${botToken}` },
+    },
+  );
   if (!infoRes.ok) {
     throw new Error(`Slack files.info failed (${infoRes.status}): ${await infoRes.text()}`);
   }

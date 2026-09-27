@@ -8,7 +8,7 @@
 
 import { Playbook, PlaybookContext, PlaybookResult } from "../base.ts";
 import { db } from "../../db.ts";
-import { generateCompletion, AiGatewayUnavailableError } from "../../ai-gateway.ts";
+import { AiGatewayUnavailableError, generateCompletion } from "../../ai-gateway.ts";
 
 interface RequiredClause {
   id: string;
@@ -17,11 +17,31 @@ interface RequiredClause {
 }
 
 const REQUIRED_CLAUSES: RequiredClause[] = [
-  { id: "dpa", label: "Data Processing Agreement terms", keywords: ["data processing agreement", "processor", "controller"] },
-  { id: "breach_notification", label: "Breach notification SLA", keywords: ["breach notification", "notify within", "security incident"] },
-  { id: "subprocessor_disclosure", label: "Sub-processor disclosure", keywords: ["sub-processor", "subcontractor", "third-party processor"] },
-  { id: "data_retention", label: "Data retention/deletion terms", keywords: ["data retention", "deletion upon termination", "data destruction"] },
-  { id: "audit_rights", label: "Audit rights clause", keywords: ["right to audit", "audit rights"] },
+  {
+    id: "dpa",
+    label: "Data Processing Agreement terms",
+    keywords: ["data processing agreement", "processor", "controller"],
+  },
+  {
+    id: "breach_notification",
+    label: "Breach notification SLA",
+    keywords: ["breach notification", "notify within", "security incident"],
+  },
+  {
+    id: "subprocessor_disclosure",
+    label: "Sub-processor disclosure",
+    keywords: ["sub-processor", "subcontractor", "third-party processor"],
+  },
+  {
+    id: "data_retention",
+    label: "Data retention/deletion terms",
+    keywords: ["data retention", "deletion upon termination", "data destruction"],
+  },
+  {
+    id: "audit_rights",
+    label: "Audit rights clause",
+    keywords: ["right to audit", "audit rights"],
+  },
 ];
 
 export const contractComplianceReviewPlaybook: Playbook = {
@@ -61,7 +81,10 @@ export const contractComplianceReviewPlaybook: Playbook = {
         if (confirmed.missing) missing.push({ clause, reason: confirmed.reason });
       }
 
-      reviewResults.push({ contract: contract.title, missingClauses: missing.map((m) => m.clause.label) });
+      reviewResults.push({
+        contract: contract.title,
+        missingClauses: missing.map((m) => m.clause.label),
+      });
       totalGaps += missing.length;
 
       if (missing.length > 0) {
@@ -94,7 +117,8 @@ export const contractComplianceReviewPlaybook: Playbook = {
     }
 
     return {
-      summary: `Reviewed ${reviewResults.length} contract(s); ${totalGaps} missing clause(s) flagged.`,
+      summary:
+        `Reviewed ${reviewResults.length} contract(s); ${totalGaps} missing clause(s) flagged.`,
       data: { reviewResults },
       gapsFlagged: totalGaps,
     };
@@ -106,7 +130,10 @@ async function confirmClauseMissing(
   contractText: string,
 ): Promise<{ missing: boolean; reason: string }> {
   if (!contractText.trim()) {
-    return { missing: true, reason: `Contract has no extracted text to review for "${clause.label}".` };
+    return {
+      missing: true,
+      reason: `Contract has no extracted text to review for "${clause.label}".`,
+    };
   }
 
   try {
@@ -117,7 +144,9 @@ async function confirmClauseMissing(
         '"PRESENT: <one sentence quoting or paraphrasing where it appears>" or ' +
         '"MISSING: <one sentence explaining what is absent>". The clause may use different ' +
         "wording than the label — look for the substance, not exact keyword matches.",
-      userPrompt: `Required clause: ${clause.label}\n\nContract text:\n${contractText.slice(0, 12000)}`,
+      userPrompt: `Required clause: ${clause.label}\n\nContract text:\n${
+        contractText.slice(0, 12000)
+      }`,
       maxTokens: 150,
     });
 
@@ -130,10 +159,13 @@ async function confirmClauseMissing(
     };
   } catch (err) {
     if (!(err instanceof AiGatewayUnavailableError)) throw err;
-    console.error(`contract-compliance-review: confirmation unavailable, trusting keyword scan: ${err.message}`);
+    console.error(
+      `contract-compliance-review: confirmation unavailable, trusting keyword scan: ${err.message}`,
+    );
     return {
       missing: true,
-      reason: `No "${clause.label}" clause detected via keyword scan (AI Gateway unavailable for confirmation — treat as provisional until reviewed).`,
+      reason:
+        `No "${clause.label}" clause detected via keyword scan (AI Gateway unavailable for confirmation — treat as provisional until reviewed).`,
     };
   }
 }

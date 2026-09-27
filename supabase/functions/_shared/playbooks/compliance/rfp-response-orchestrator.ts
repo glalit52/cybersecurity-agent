@@ -5,7 +5,7 @@
 // and can be scheduled or batch-triggered the same way.
 
 import { Playbook, PlaybookContext, PlaybookResult } from "../base.ts";
-import { createRequest, answerQuestion } from "../../compliance-core.ts";
+import { answerQuestion, createRequest } from "../../compliance-core.ts";
 import { ComplianceRequestType } from "../../types.ts";
 
 export const rfpResponseOrchestratorPlaybook: Playbook = {
@@ -48,7 +48,8 @@ export const rfpResponseOrchestratorPlaybook: Playbook = {
     }
 
     return {
-      summary: `RFP "${title}": ${answered}/${questions.length} answered from evidence graph, ${gapsFlagged} flagged as gaps needing review.`,
+      summary:
+        `RFP "${title}": ${answered}/${questions.length} answered from evidence graph, ${gapsFlagged} flagged as gaps needing review.`,
       data: { requestId: request.id },
       gapsFlagged,
     };

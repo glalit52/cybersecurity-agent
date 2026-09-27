@@ -57,7 +57,9 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     );
   }
   if (!res.ok) {
-    throw new AiGatewayUnavailableError(`Embedding request failed (${res.status}): ${await res.text()}`);
+    throw new AiGatewayUnavailableError(
+      `Embedding request failed (${res.status}): ${await res.text()}`,
+    );
   }
   const data = await res.json();
   const embedding = data?.data?.[0]?.embedding;
@@ -95,7 +97,9 @@ export async function generateCompletion(req: CompletionRequest): Promise<string
     );
   }
   if (!res.ok) {
-    throw new AiGatewayUnavailableError(`Completion request failed (${res.status}): ${await res.text()}`);
+    throw new AiGatewayUnavailableError(
+      `Completion request failed (${res.status}): ${await res.text()}`,
+    );
   }
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content;

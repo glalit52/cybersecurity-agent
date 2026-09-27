@@ -43,7 +43,7 @@ export const accessRecertificationCampaignPlaybook: Playbook = {
         continue;
       }
 
-      const { data: action, error } = await db()
+      const { error } = await db()
         .from("remediation_actions")
         .insert({
           organization_id: ctx.organizationId,
@@ -52,22 +52,24 @@ export const accessRecertificationCampaignPlaybook: Playbook = {
           description: `Recertify access under control "${control.title}"`,
           status: "proposed",
           requested_by: ctx.actorId,
-        })
-        .select()
-        .single();
+        });
 
       if (error) {
-        console.error(`access-recertification-campaign: failed to create request for "${control.title}": ${error.message}`);
+        console.error(
+          `access-recertification-campaign: failed to create request for "${control.title}": ${error.message}`,
+        );
         continue;
       }
 
       campaignsStarted++;
       pendingOwnerIds.push(control.owner_id);
-      // TODO(bot): post a Slack/Teams DM to control.owner_id with `action.id`
-      // and an attest/flag-an-issue prompt, matching the notification
-      // pattern in compliance-core.ts's notifyControlOwner. Until that's
-      // wired in, this is a real, queryable record (not a false "sent")
-      // but the owner won't be proactively pinged yet.
+      // TODO(bot): post a Slack/Teams DM to control.owner_id referencing
+      // this request (query remediation_actions by organization_id +
+      // action_type + control.id if the row id is needed) with an
+      // attest/flag-an-issue prompt, matching the notification pattern in
+      // compliance-core.ts's notifyControlOwner. Until that's wired in,
+      // this is a real, queryable record (not a false "sent") but the
+      // owner won't be proactively pinged yet.
     }
 
     return {
