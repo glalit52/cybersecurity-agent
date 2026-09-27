@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@^1.0.0";
+import { assertEquals } from "@std/assert";
 import { checkInternalAuth, INTERNAL_AUTH_HEADER } from "./internal-auth.ts";
 
 function withEnv(value: string | undefined, fn: () => void) {

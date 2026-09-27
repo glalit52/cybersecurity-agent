@@ -144,6 +144,19 @@ a formatter; both are fixed. `_shared/db.ts` also switched from an
 is the currently-recommended way to pull npm packages into a Supabase
 Edge Function regardless of that — not merely a workaround.
 
+That local Deno was v2.2.7, though, and the first real CI run (on the
+commit that made all the claims above) came back red — a good example of
+why "verified locally" and "verified against what CI actually runs" are
+different claims. CI installs Deno v2.x, which resolved to v2.9.7, and
+2.9's `deno lint` added a `no-import-prefix` rule that rejects inline
+`npm:`/`jsr:` specifiers in source files entirely — exactly the pattern
+just adopted for `db.ts` and every test file. Fixed properly: dependencies
+now live in `deno.json`'s `imports` map, referenced everywhere via bare
+specifiers (`@supabase/supabase-js`, `@std/assert`). Downloaded Deno
+v2.9.7 directly (same binary CI installs) to confirm — `fmt`/`lint`/
+`check`/`test` all pass clean against that exact version, not just the
+older local one.
+
 `.github/workflows/ci.yml` runs the same four commands on every push
 going forward, so this stays true rather than rotting.
 

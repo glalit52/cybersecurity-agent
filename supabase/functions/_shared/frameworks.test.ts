@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@^1.0.0";
+import { assertEquals } from "@std/assert";
 import { REFERENCE_CONTROLS } from "./frameworks.ts";
 
 Deno.test("every control has a unique frameworkId:controlRef pair", () => {

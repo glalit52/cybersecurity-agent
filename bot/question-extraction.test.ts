@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@^1.0.0";
+import { assertEquals } from "@std/assert";
 import { splitIntoQuestions } from "./question-extraction.ts";
 
 Deno.test("splits a numbered list into individual questions", () => {

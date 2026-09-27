@@ -3,7 +3,7 @@
 // test against a real (or locally-running) Supabase instance, not a unit
 // test.
 
-import { assertEquals } from "jsr:@std/assert@^1.0.0";
+import { assertEquals } from "@std/assert";
 import { getPlaybook, listPlaybooks, Playbook, registerPlaybook } from "./base.ts";
 
 function fakePlaybook(id: string, category: Playbook["category"]): Playbook {
