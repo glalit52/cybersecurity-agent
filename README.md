@@ -23,6 +23,9 @@ alongside the existing ones, bot commands registered with the real router).
 
 ```
 TECHNICAL_SPEC.md                 architecture, data model, workflows, playbook catalog, rollout plan
+deno.json                         lint/fmt/check/test task definitions
+.github/workflows/ci.yml          runs all four on every push (see "Testing & CI" below)
+supabase/config.toml               Supabase CLI project config — required for `supabase start`/`db push`
 supabase/migrations/              schema (evidence graph, findings, remediation,
                                    compliance requests/questions, connectors, approvals,
                                    playbook run history + scheduling)
@@ -40,6 +43,9 @@ supabase/functions/
                                    lifted from the existing Access Provisioning Agent
   _shared/connector-configs.ts    per-org connector enablement — the boundary between
                                    "connector code exists" and "this org turned it on"
+  _shared/internal-auth.ts        shared-secret check every function requires (see
+                                   "Testing & CI" / TECHNICAL_SPEC.md §7 — without this,
+                                   the service-role-backed functions are wide open)
   _shared/ai-gateway.ts           AI Gateway client: embeddings + completions,
                                    throws AiGatewayUnavailableError when unconfigured
                                    so callers can fall back gracefully
@@ -69,7 +75,12 @@ bot/
   commands/cyber.ts               /cyber scan|findings|investigate|remediate|report|playbooks|run
   commands/compliance.ts          /compliance answer|rfp upload|status|playbooks|run, /audit evidence
   commands/connectors.ts          /cyber|compliance connectors|connect|disconnect
+  internal-fetch.ts               attaches the shared secret to every call into the agent functions
   register.ts                     single entrypoint to wire all command sets in
+
+*.test.ts files sit next to the module they test (question-extraction.test.ts,
+document-extraction.test.ts, connectors/base.test.ts, frameworks.test.ts,
+playbooks/base.test.ts, internal-auth.test.ts) — standard Deno convention.
 ```
 
 ## What's real vs. stubbed right now
@@ -100,6 +111,38 @@ connector stub returns realistic shaped mock data once enabled, so every
 pipeline (`scan → investigate → remediate` and `ingest → answer`) still
 runs end-to-end today against mock signals.
 
+## Testing & CI
+
+```bash
+deno task fmt      # format check
+deno task lint      # lint
+deno task check     # type-check every function + bot module
+deno task test      # run the test suite (bot/*.test.ts, supabase/functions/_shared/**/*.test.ts)
+```
+
+**Honesty check on how verified this actually is:** this scaffold was built
+in a sandboxed environment where `deno.land`/`jsr.io` are blocked by
+outbound network policy, so the Deno CLI itself was never installable
+there — every check up to this point was a hand-rolled `tsc --noEmit`
+invocation under Node (type-checking only, and only by manually filtering
+out Deno-specific import/global errors). That's real but limited: it
+already caught nothing wrong with `question-extraction.ts`'s original
+logic, because a type checker doesn't know a completed sentence shouldn't
+absorb the next line. Actually *running* the pure, dependency-free modules
+under Node (`node --experimental-strip-types`) caught a real bug — a
+finished question stayed "open" and silently swallowed the next unrelated
+line — which is now fixed and covered by
+`bot/question-extraction.test.ts`'s regression test.
+
+The `.github/workflows/ci.yml` added here runs the four commands above
+against a real Deno CLI on every push — that's the first time this whole
+suite will actually execute. Treat the first CI run on this branch as a
+real result, not a formality: if something in the DB/Deno-specific 80% of
+the codebase (everything importing `db.ts`, `ai-gateway.ts`, the
+`Deno.serve` entrypoints) has a bug analogous to the one found by hand
+above, this is where it would surface, since none of that code has been
+executed anywhere yet — only type-checked.
+
 ## Running locally
 
 Requires the Supabase CLI and a local Supabase stack (matches the existing
@@ -121,6 +164,16 @@ Required env vars for the functions (set via `supabase secrets set` or
 ```
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
+
+# REQUIRED on every function (cybersecurity-agent, compliance-agent,
+# evidence-graph, connector-onboarding, playbook-scheduler). These
+# functions use the service-role client, which bypasses RLS by design —
+# without this shared secret, anyone who finds a function's URL could pass
+# any organizationId and act on any tenant's data. Every caller (bot
+# commands, pg_cron) must send it as the x-internal-api-key header. See
+# _shared/internal-auth.ts and TECHNICAL_SPEC.md §7 (RBAC, Policy & Audit
+# extensions — "Service-to-service auth boundary").
+INTERNAL_API_SECRET
 
 # Reasoning layer (optional — falls back to keyword search / plain
 # evidence listings if unset, see TECHNICAL_SPEC.md §10):
@@ -146,11 +199,14 @@ already uses.
 
 ## Exercising the pipeline without real credentials
 
-Connectors are per-org opt-in (see TECHNICAL_SPEC.md §9), so enable one first:
+Every call below needs the `x-internal-api-key` header (§ above) matching
+your `INTERNAL_API_SECRET`, or you'll get a 401. Connectors are also
+per-org opt-in (see TECHNICAL_SPEC.md §9), so enable one first:
 
 ```bash
 curl -X POST http://localhost:54321/functions/v1/connector-onboarding \
   -H 'content-type: application/json' \
+  -H 'x-internal-api-key: <INTERNAL_API_SECRET>' \
   -d '{"action":"enable","organizationId":"<org-uuid>","actorId":null,"params":{"connectorId":"aws-security-hub"}}'
 ```
 
@@ -159,6 +215,7 @@ Then scan:
 ```bash
 curl -X POST http://localhost:54321/functions/v1/cybersecurity-agent \
   -H 'content-type: application/json' \
+  -H 'x-internal-api-key: <INTERNAL_API_SECRET>' \
   -d '{"action":"scan","organizationId":"<org-uuid>","actorId":null,"params":{"scope":"all"}}'
 ```
 
@@ -173,6 +230,7 @@ Or run any of the 16 playbooks directly:
 ```bash
 curl -X POST http://localhost:54321/functions/v1/cybersecurity-agent \
   -H 'content-type: application/json' \
+  -H 'x-internal-api-key: <INTERNAL_API_SECRET>' \
   -d '{"action":"run-playbook","organizationId":"<org-uuid>","actorId":null,"params":{"playbookId":"cloud-misconfiguration-sweep"}}'
 ```
 

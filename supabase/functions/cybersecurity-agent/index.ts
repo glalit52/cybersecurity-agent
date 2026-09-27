@@ -14,6 +14,7 @@ import { listPlaybooks, runPlaybook } from "../_shared/playbooks/base.ts";
 import "../_shared/playbooks/register-all.ts";
 import { relatedNodes, semanticSearchByText } from "../_shared/evidence-graph-core.ts";
 import { generateCompletion, AiGatewayUnavailableError } from "../_shared/ai-gateway.ts";
+import { checkInternalAuth } from "../_shared/internal-auth.ts";
 import { EvidenceNode, RemediationActionType, SecurityFinding } from "../_shared/types.ts";
 
 interface CyberAgentRequest {
@@ -343,6 +344,9 @@ function mapFindingRow(row: any): SecurityFinding {
 // ---------------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
+  const authError = checkInternalAuth(req);
+  if (authError) return authError;
+
   try {
     const body: CyberAgentRequest = await req.json();
     const { action, organizationId, actorId, params } = body;

@@ -1,0 +1,35 @@
+name: CI
+
+# Deno isn't installable in the sandbox this scaffold was originally built
+# in (deno.land is blocked by that environment's outbound network policy),
+# so everything here — type-checking, linting, formatting, and the actual
+# test suite — has never been run until this workflow executes it on a
+# real push. Review the first run's results accordingly.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  deno-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Format check
+        run: deno task fmt
+
+      - name: Lint
+        run: deno task lint
+
+      - name: Type check
+        run: deno task check
+
+      - name: Test
+        run: deno task test

@@ -1,0 +1,57 @@
+# Supabase CLI project config. `project_id` is a placeholder — replace with
+# the real project ref (or better, merge this scaffold's migrations/
+# functions into the existing Anvita Supabase project's own config.toml
+# instead of running `supabase link` against a new project).
+project_id = "anvita-enterprise-trust-agent"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[db.pooler]
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = false
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = []
+jwt_expiry = 3600
+enable_signup = true
+
+[edge_runtime]
+enabled = true
+policy = "oneshot"
+inspector_port = 8083
+
+[functions.cybersecurity-agent]
+verify_jwt = false
+
+[functions.compliance-agent]
+verify_jwt = false
+
+[functions.evidence-graph]
+verify_jwt = false
+
+[functions.connector-onboarding]
+verify_jwt = false
+
+[functions.playbook-scheduler]
+verify_jwt = false

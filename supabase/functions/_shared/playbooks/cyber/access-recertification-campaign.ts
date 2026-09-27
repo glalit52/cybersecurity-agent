@@ -3,6 +3,16 @@
 // nodes tagged as access-review controls, finds the systems/accounts they
 // govern, and requests recertification from each control owner rather than
 // waiting for an auditor to ask for evidence of the last review.
+//
+// A recertification request is NOT a DevOps-style approve/reject action —
+// there's no one approving someone else's proposed change here, just an
+// owner who needs to go attest their team's access is still correct. So
+// unlike remediate() or endpoint-threat-containment, this deliberately
+// does NOT create an approval_requests row: status stays "proposed" (an
+// honest record that the request exists, not a claim that it's awaiting
+// approval it was never routed for) until the owner attests, at which
+// point a future command marks it "executed" (confirmed) or raises a new
+// security_finding if the owner reports access that should be revoked.
 
 import { Playbook, PlaybookContext, PlaybookResult } from "../base.ts";
 import { db } from "../../db.ts";
@@ -24,33 +34,48 @@ export const accessRecertificationCampaignPlaybook: Playbook = {
       .contains("metadata", { controlCategory: "access_review" });
 
     let campaignsStarted = 0;
-    const notified: string[] = [];
+    const pendingOwnerIds: string[] = [];
+    const skippedNoOwner: string[] = [];
 
     for (const control of accessControls ?? []) {
-      if (!control.owner_id) continue;
+      if (!control.owner_id) {
+        skippedNoOwner.push(control.title);
+        continue;
+      }
 
-      const { data: action } = await db()
+      const { data: action, error } = await db()
         .from("remediation_actions")
         .insert({
           organization_id: ctx.organizationId,
           finding_id: null,
           action_type: "request_recertification",
           description: `Recertify access under control "${control.title}"`,
-          status: "pending_approval",
+          status: "proposed",
           requested_by: ctx.actorId,
         })
         .select()
         .single();
 
-      if (action) {
-        campaignsStarted++;
-        notified.push(control.title);
+      if (error) {
+        console.error(`access-recertification-campaign: failed to create request for "${control.title}": ${error.message}`);
+        continue;
       }
+
+      campaignsStarted++;
+      pendingOwnerIds.push(control.owner_id);
+      // TODO(bot): post a Slack/Teams DM to control.owner_id with `action.id`
+      // and an attest/flag-an-issue prompt, matching the notification
+      // pattern in compliance-core.ts's notifyControlOwner. Until that's
+      // wired in, this is a real, queryable record (not a false "sent")
+      // but the owner won't be proactively pinged yet.
     }
 
     return {
-      summary: `${campaignsStarted} access recertification request(s) sent to control owners.`,
-      data: { notified },
+      summary: skippedNoOwner.length > 0
+        ? `${campaignsStarted} recertification request(s) created (owner notification pending bot wiring); ` +
+          `${skippedNoOwner.length} control(s) skipped for having no assigned owner.`
+        : `${campaignsStarted} recertification request(s) created (owner notification pending bot wiring).`,
+      data: { pendingOwnerIds, skippedNoOwner },
     };
   },
 };

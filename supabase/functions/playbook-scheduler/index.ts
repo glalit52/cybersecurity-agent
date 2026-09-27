@@ -14,7 +14,10 @@
 //                      -- coarser cron_expression checked below
 //     $$ select net.http_post(
 //          url := '<project-ref>.supabase.co/functions/v1/playbook-scheduler',
-//          headers := '{"Authorization": "Bearer <service-role-key>"}'::jsonb
+//          headers := jsonb_build_object(
+//            'Authorization', 'Bearer <service-role-key>',
+//            'x-internal-api-key', '<INTERNAL_API_SECRET>'
+//          )
 //        ) $$
 //   );
 //
@@ -26,6 +29,7 @@ import { db } from "../_shared/db.ts";
 import "../_shared/connectors/register-all.ts";
 import { runPlaybook } from "../_shared/playbooks/base.ts";
 import "../_shared/playbooks/register-all.ts";
+import { checkInternalAuth } from "../_shared/internal-auth.ts";
 
 // TODO: swap for a real cron-expression evaluator (e.g. a small Deno cron
 // parser) once this runs against production traffic. This placeholder
@@ -38,7 +42,10 @@ function isDue(lastRunAt: string | null): boolean {
   return hoursSinceLastRun >= 1;
 }
 
-Deno.serve(async (_req: Request) => {
+Deno.serve(async (req: Request) => {
+  const authError = checkInternalAuth(req);
+  if (authError) return authError;
+
   const { data: scheduled, error } = await db()
     .from("scheduled_playbooks")
     .select("*")

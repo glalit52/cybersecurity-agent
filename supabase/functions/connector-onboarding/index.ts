@@ -8,6 +8,7 @@
 import "../_shared/connectors/register-all.ts";
 import { listConnectors } from "../_shared/connectors/base.ts";
 import { listConnectorConfigs, enableConnector, disableConnector } from "../_shared/connector-configs.ts";
+import { checkInternalAuth } from "../_shared/internal-auth.ts";
 
 interface OnboardingRequest {
   action: "list" | "enable" | "disable";
@@ -17,6 +18,9 @@ interface OnboardingRequest {
 }
 
 Deno.serve(async (req: Request) => {
+  const authError = checkInternalAuth(req);
+  if (authError) return authError;
+
   try {
     const body: OnboardingRequest = await req.json();
     const { action, organizationId, actorId, params } = body;

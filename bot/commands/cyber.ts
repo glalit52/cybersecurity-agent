@@ -10,6 +10,7 @@
 // bot backend repo.
 
 import type { CommandContext, CommandHandler } from "../router-types.ts";
+import { internalHeaders } from "../internal-fetch.ts";
 
 const CYBER_AGENT_URL = Deno.env.get("CYBERSECURITY_AGENT_URL") ??
   "http://localhost:54321/functions/v1/cybersecurity-agent";
@@ -17,7 +18,7 @@ const CYBER_AGENT_URL = Deno.env.get("CYBERSECURITY_AGENT_URL") ??
 async function callAgent(action: string, ctx: CommandContext, params: Record<string, unknown>) {
   const res = await fetch(CYBER_AGENT_URL, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: internalHeaders(),
     body: JSON.stringify({
       action,
       organizationId: ctx.organizationId,

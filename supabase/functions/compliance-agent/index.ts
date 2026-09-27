@@ -12,6 +12,7 @@ import { createRequest, answerQuestion, routeForApproval } from "../_shared/comp
 import "../_shared/connectors/register-all.ts";
 import { listPlaybooks, runPlaybook } from "../_shared/playbooks/base.ts";
 import "../_shared/playbooks/register-all.ts";
+import { checkInternalAuth } from "../_shared/internal-auth.ts";
 import { ComplianceRequestType } from "../_shared/types.ts";
 
 interface ComplianceAgentRequest {
@@ -22,6 +23,9 @@ interface ComplianceAgentRequest {
 }
 
 Deno.serve(async (req: Request) => {
+  const authError = checkInternalAuth(req);
+  if (authError) return authError;
+
   try {
     const body: ComplianceAgentRequest = await req.json();
     const { action, organizationId, actorId, params } = body;

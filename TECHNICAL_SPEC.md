@@ -217,7 +217,21 @@ customer data at rest?"):
 - New audit event types appended to the existing audit log:
   `finding.detected`, `finding.investigated`, `remediation.requested`,
   `remediation.approved`, `remediation.executed`, `compliance.answered`,
-  `compliance.flagged_gap`, `evidence.updated`.
+  `compliance.flagged_gap`, `evidence.updated`, `connector.enabled`,
+  `connector.disabled`.
+- **Service-to-service auth boundary.** Every Edge Function in this
+  scaffold uses the Supabase service-role client (bypasses RLS by design —
+  these agents need to read/write across tables regardless of the calling
+  user's row permissions), so `verify_jwt` is disabled for all of them in
+  `supabase/config.toml`. That combination is only safe because
+  `_shared/internal-auth.ts` requires every request to carry a shared
+  secret (`INTERNAL_API_SECRET`) via the `x-internal-api-key` header — bot
+  commands and the `pg_cron`-triggered scheduler both send it, and any
+  request without it gets a 401. Without this, the endpoints would be an
+  open door to cross-tenant data access for anyone who found the URL.
+  Prefer whatever internal service-auth mechanism the real platform's
+  other Edge Function calls already use, if one exists, over this static
+  secret — it's deliberately the simplest thing that closes the gap.
 
 ## 8. Connectors — V1 additions and priority
 
@@ -302,6 +316,28 @@ Anvita codebase. What's included now:
   evidence listing / trusting the keyword scan respectively — so the
   pipeline still produces useful (if less polished) output before
   `AI_GATEWAY_API_KEY` is configured, rather than erroring out.
+- Now actually verified, not just type-checked: `deno.json` + a GitHub
+  Actions CI workflow run format/lint/type-check/test on every push, and
+  a first real test suite exists (`*.test.ts` next to the modules they
+  cover). Prior to this, correctness was checked only via `tsc --noEmit`
+  under Node with hand-picked flags — which is why a real bug survived
+  several rounds of "type-checks clean": `question-extraction.ts`'s
+  original line-accumulation logic let a completed, "?"-terminated
+  question stay "open" and silently absorb the next unrelated line (e.g. a
+  section heading). It was only caught by actually *running* the function
+  under Node, which is how the fix and its regression test were derived.
+  Similarly, `access-recertification-campaign.ts` created
+  `remediation_actions` rows with `status: "pending_approval"` but never
+  called `createApprovalRequest`, so nothing was ever routed to an
+  approver despite the summary text claiming requests were "sent" — fixed
+  to use `status: "proposed"` with honest messaging, since a
+  recertification is an owner attestation, not a DevOps-style
+  approve/reject action. Neither bug affected type-checking; both were
+  found by re-reading the code adversarially and one by executing it.
+  **Everything that imports `db.ts` or `ai-gateway.ts`, and all five
+  `Deno.serve` entrypoints, has been type-checked but never executed** —
+  that's what the CI workflow's first run against this branch will do for
+  the first time.
 
 ## 11. What we need from you to go live
 

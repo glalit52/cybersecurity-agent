@@ -6,6 +6,7 @@ import { downloadSlackFile } from "../adapters/slack.ts";
 import { downloadTeamsAttachment } from "../adapters/teams.ts";
 import { extractText, DocumentExtractionUnsupportedError } from "../document-extraction.ts";
 import { splitIntoQuestions } from "../question-extraction.ts";
+import { internalHeaders } from "../internal-fetch.ts";
 
 const COMPLIANCE_AGENT_URL = Deno.env.get("COMPLIANCE_AGENT_URL") ??
   "http://localhost:54321/functions/v1/compliance-agent";
@@ -13,7 +14,7 @@ const COMPLIANCE_AGENT_URL = Deno.env.get("COMPLIANCE_AGENT_URL") ??
 async function callAgent(action: string, ctx: CommandContext, params: Record<string, unknown>) {
   const res = await fetch(COMPLIANCE_AGENT_URL, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: internalHeaders(),
     body: JSON.stringify({
       action,
       organizationId: ctx.organizationId,

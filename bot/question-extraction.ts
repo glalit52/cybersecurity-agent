@@ -6,31 +6,51 @@
 
 const LIST_MARKER = /^\s*(?:\d+[.)]|[a-z][.)]|[-*•])\s+/i;
 const TRAILING_WHITESPACE = /\s+$/;
+const ENDS_WITH_QUESTION_MARK = /\?\s*$/;
 
 export function splitIntoQuestions(text: string): string[] {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
   const questions: string[] = [];
-  let current = "";
+  // Only a list item can stay "open" across wrapped lines — a list marker
+  // unambiguously starts a new item, so everything until the next marker
+  // safely belongs to it, even without terminal punctuation. A bare
+  // interrogative sentence, once it hits its "?", is complete: nothing
+  // should get glued onto it, so it's pushed immediately rather than left
+  // open (an earlier version of this function left it open, which caused
+  // the next unrelated line — e.g. a section heading — to be silently
+  // appended to the previous question).
+  let openListItem = "";
+
+  const flushOpenListItem = () => {
+    if (openListItem) {
+      questions.push(finalize(openListItem));
+      openListItem = "";
+    }
+  };
 
   for (const line of lines) {
     const isListItem = LIST_MARKER.test(line);
-    const looksLikeQuestion = /\?\s*$/.test(line) || isListItem;
+    const endsWithQuestionMark = ENDS_WITH_QUESTION_MARK.test(line);
 
     if (isListItem) {
-      if (current) questions.push(finalize(current));
-      current = line.replace(LIST_MARKER, "");
-    } else if (looksLikeQuestion) {
-      if (current) questions.push(finalize(current));
-      current = line;
-    } else if (current) {
-      // Continuation of the previous item (wrapped line in the source doc).
-      current += ` ${line}`;
+      flushOpenListItem();
+      const content = line.replace(LIST_MARKER, "");
+      if (endsWithQuestionMark) {
+        questions.push(finalize(content));
+      } else {
+        openListItem = content;
+      }
+    } else if (openListItem) {
+      openListItem += ` ${line}`;
+      if (endsWithQuestionMark) flushOpenListItem();
+    } else if (endsWithQuestionMark) {
+      questions.push(finalize(line));
     }
-    // Lines with no list marker and no accumulated context (e.g. a title
-    // or section header before the first question) are dropped.
+    // Otherwise: no list marker, no open item, no "?" — a title or section
+    // header with nothing to attach it to. Dropped.
   }
-  if (current) questions.push(finalize(current));
+  flushOpenListItem();
 
   // De-dupe and drop anything too short to plausibly be a real question
   // (catches stray headers/markers that slipped through).

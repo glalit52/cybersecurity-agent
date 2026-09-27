@@ -4,6 +4,7 @@
 // supabase/functions/_shared/connector-configs.ts.
 
 import type { CommandContext, CommandHandler } from "../router-types.ts";
+import { internalHeaders } from "../internal-fetch.ts";
 
 const CONNECTOR_ONBOARDING_URL = Deno.env.get("CONNECTOR_ONBOARDING_URL") ??
   "http://localhost:54321/functions/v1/connector-onboarding";
@@ -11,7 +12,7 @@ const CONNECTOR_ONBOARDING_URL = Deno.env.get("CONNECTOR_ONBOARDING_URL") ??
 async function callOnboarding(action: string, ctx: CommandContext, params: Record<string, unknown>) {
   const res = await fetch(CONNECTOR_ONBOARDING_URL, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: internalHeaders(),
     body: JSON.stringify({
       action,
       organizationId: ctx.organizationId,

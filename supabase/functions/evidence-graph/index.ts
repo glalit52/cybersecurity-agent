@@ -10,8 +10,12 @@ import {
   relatedNodes,
   isStale,
 } from "../_shared/evidence-graph-core.ts";
+import { checkInternalAuth } from "../_shared/internal-auth.ts";
 
 Deno.serve(async (req: Request) => {
+  const authError = checkInternalAuth(req);
+  if (authError) return authError;
+
   try {
     const url = new URL(req.url);
     const op = url.searchParams.get("op");

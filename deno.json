@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "lib": ["deno.window"],
+    "strict": true
+  },
+  "lint": {
+    "include": ["supabase/functions/", "bot/"]
+  },
+  "fmt": {
+    "include": ["supabase/functions/", "bot/"],
+    "lineWidth": 100
+  },
+  "tasks": {
+    "check": "deno check supabase/functions/*/index.ts supabase/functions/_shared/**/*.ts bot/**/*.ts",
+    "test": "deno test --allow-env --allow-net supabase/functions/ bot/",
+    "lint": "deno lint supabase/functions/ bot/",
+    "fmt": "deno fmt --check supabase/functions/ bot/"
+  }
+}
