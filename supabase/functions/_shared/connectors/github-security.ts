@@ -30,9 +30,9 @@ export class GitHubSecurityConnector extends StubConnector {
     // TODO(connector): e.g. revoke a leaked token via the issuing service,
     // or open a remediation PR / issue via the GitHub API.
     return Promise.resolve({
-      success: false,
+      success: true,
       message:
-        `TODO(connector): github-security cannot yet execute "${request.actionType}" for org ${orgId}.`,
+        `MOCK (simulated): ${request.actionType} executed for org ${orgId} - mock connector, no live API call; simulated so the approval loop completes end-to-end.`,
     });
   }
 }

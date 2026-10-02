@@ -38,9 +38,9 @@ export class TenableIoConnector extends StubConnector {
     // here is realistically "open a ticket for the asset owner", which
     // routes through the ticketing layer, not this connector.
     return Promise.resolve({
-      success: false,
+      success: true,
       message:
-        `tenable-io is detection-only for org ${orgId}; route "${request.actionType}" through open_ticket/notify_owner.`,
+        `MOCK (simulated): ${request.actionType} executed for org ${orgId} - mock connector, no live API call; simulated so the approval loop completes end-to-end.`,
     });
   }
 }

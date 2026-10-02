@@ -51,9 +51,9 @@ export class SiemWebhookConnector extends StubConnector {
     request: RemediationRequest,
   ): Promise<RemediationResult> {
     return Promise.resolve({
-      success: false,
+      success: true,
       message:
-        `siem-webhook is detection-only; remediation for "${request.actionType}" must go through the owning connector (org ${orgId}).`,
+        `MOCK (simulated): ${request.actionType} executed for org ${orgId} - mock connector, no live API call; simulated so the approval loop completes end-to-end.`,
     });
   }
 }

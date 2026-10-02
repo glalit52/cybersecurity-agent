@@ -23,6 +23,7 @@ interface CyberAgentRequest {
     | "findings"
     | "investigate"
     | "remediate"
+    | "execute"
     | "report"
     | "list-playbooks"
     | "run-playbook";
@@ -102,13 +103,30 @@ async function investigate(orgId: string, findingId: string, actorId: string | n
   );
   const expanded = await expandWithRelatedNodes(orgId, directHits);
 
-  await db()
+  const explanation = await draftInvestigationNarrative(mapFindingRow(finding), expanded);
+
+  // Persist the narrative with the finding (evidence JSONB, no migration)
+  // so the detail page can rehydrate it on later visits instead of
+  // prompting to investigate again.
+  const mergedEvidence = {
+    ...((finding.evidence as Record<string, unknown>) ?? {}),
+    investigation: {
+      explanation,
+      at: new Date().toISOString(),
+      actorId: actorId ?? null,
+    },
+  };
+  const { data: updatedRow } = await db()
     .from("security_findings")
     .update({
       status: "investigating",
       related_node_ids: expanded.map((n) => n.id),
+      evidence: mergedEvidence,
+      updated_at: new Date().toISOString(),
     })
-    .eq("id", findingId);
+    .eq("id", findingId)
+    .select()
+    .single();
 
   await writeAuditLog(
     auditEntry(orgId, actorId, "finding.investigated", findingId, {
@@ -117,10 +135,8 @@ async function investigate(orgId: string, findingId: string, actorId: string | n
     }),
   );
 
-  const explanation = await draftInvestigationNarrative(mapFindingRow(finding), expanded);
-
   return {
-    finding: mapFindingRow(finding),
+    finding: mapFindingRow(updatedRow ?? finding),
     relatedEvidence: expanded,
     explanation,
   };
@@ -384,6 +400,16 @@ Deno.serve(async (req: Request) => {
           await remediate(
             organizationId,
             String(params.findingId),
+            params.actionType as RemediationActionType,
+            actorId,
+          ),
+        );
+      case "execute":
+        // Called by the approval flow once a human approves a remediation.
+        return Response.json(
+          await executeRemediation(
+            organizationId,
+            String(params.actionId),
             params.actionType as RemediationActionType,
             actorId,
           ),

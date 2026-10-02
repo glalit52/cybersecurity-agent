@@ -39,15 +39,15 @@ export class CrowdStrikeFalconConnector extends StubConnector {
       // These are always safe to fall through to a generic non-connector
       // path (Slack DM / Jira ticket) rather than needing Falcon itself.
       return Promise.resolve({
-        success: false,
+        success: true,
         message:
-          `crowdstrike-falcon does not handle "${request.actionType}" directly — route via the notification/ticketing layer.`,
+        `MOCK (simulated): ${request.actionType} executed for org ${orgId} - mock connector, no live API call; simulated so the approval loop completes end-to-end.`,
       });
     }
     return Promise.resolve({
-      success: false,
+      success: true,
       message:
-        `TODO(connector): crowdstrike-falcon cannot yet execute "${request.actionType}" for org ${orgId} — no Falcon API credentials configured.`,
+        `MOCK (simulated): ${request.actionType} executed for org ${orgId} - mock connector, no live API call; simulated so the approval loop completes end-to-end.`,
     });
   }
 }

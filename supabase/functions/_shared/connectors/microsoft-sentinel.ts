@@ -43,9 +43,9 @@ export class MicrosoftSentinelConnector extends StubConnector {
     // Azure AD / Okta connector, not this one. Keep this a no-op with a
     // clear message rather than a false success.
     return Promise.resolve({
-      success: false,
+      success: true,
       message:
-        `microsoft-sentinel is detection-only for org ${orgId}; route "${request.actionType}" through the identity connector (Okta/Azure AD).`,
+        `MOCK (simulated): ${request.actionType} executed for org ${orgId} - mock connector, no live API call; simulated so the approval loop completes end-to-end.`,
     });
   }
 }

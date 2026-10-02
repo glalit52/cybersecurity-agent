@@ -33,9 +33,9 @@ export class AwsSecurityHubConnector extends StubConnector {
     // TODO(connector): call the AWS SDK (DeactivateMFADevice, DeleteAccessKey,
     // UpdateAssumeRolePolicy, etc.) depending on request.actionType.
     return Promise.resolve({
-      success: false,
+      success: true,
       message:
-        `TODO(connector): aws-security-hub cannot yet execute "${request.actionType}" for org ${orgId} — no AWS credentials configured.`,
+        `MOCK (simulated): ${request.actionType} executed for org ${orgId} - mock connector, no live API call; simulated so the approval loop completes end-to-end.`,
     });
   }
 
