@@ -1,0 +1,26 @@
+# Render Blueprint: deploys the React dashboard as a static site.
+# The backend (database + Edge Functions) lives on Supabase, not Render.
+#
+# VITE_* values are baked in at build time and end up in the browser bundle,
+# so only put PUBLIC values here (the Supabase URL and the anon/publishable
+# key). Never put the service-role key or INTERNAL_API_SECRET in this file.
+# Remove both VITE_SUPABASE_* vars to run the dashboard in seeded demo mode.
+services:
+  - type: web
+    name: enterprise-trust-agent-dashboard
+    runtime: static
+    rootDir: dashboard
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    routes:
+      # SPA fallback so /cybersecurity, /approvals etc. survive a refresh
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: VITE_SUPABASE_URL
+        value: https://yvkyxksffuqnumxkieqr.supabase.co
+      - key: VITE_SUPABASE_ANON_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2a3l4a3NmZnVxbnVteGtpZXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNTk1NzIsImV4cCI6MjA3NDYzNTU3Mn0.xYy_0xxeNV5PAzRcg9net7aqnk-cHIa-s3gHYCCGeCQ

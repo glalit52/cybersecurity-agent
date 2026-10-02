@@ -7,7 +7,14 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SeverityBadge, StatusBadge } from "@/components/ui/Badge";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { FindingsTrendChart } from "@/components/charts/FindingsTrendChart";
-import { useApprovals, useConnectors, useFindings, usePlaybookRuns } from "@/lib/queries";
+import {
+  useApprovals,
+  useComplianceQuestions,
+  useConnectors,
+  useFindings,
+  usePlaybookRuns,
+} from "@/lib/queries";
+import { computeTrustPosture } from "@/lib/trust-posture";
 import { findingsTrend, severityBreakdown } from "@/lib/mock-data";
 import { formatRelativeTime, titleCase } from "@/lib/utils";
 
@@ -16,6 +23,15 @@ export function Overview() {
   const { data: approvals } = useApprovals();
   const { data: connectors } = useConnectors();
   const { data: runs } = usePlaybookRuns();
+  const { data: questions } = useComplianceQuestions();
+
+  const posture = computeTrustPosture({
+    findings: findings ?? [],
+    questions: questions ?? [],
+    connectors: connectors ?? [],
+    approvals: approvals ?? [],
+    runs: runs ?? [],
+  });
 
   const breakdown = severityBreakdown(findings ?? []);
   const pendingApprovals = approvals?.filter((a) => a.status === "pending").length ?? 0;
@@ -28,6 +44,36 @@ export function Overview() {
       title="Overview"
       description="Cybersecurity and compliance posture across every connected system."
     >
+      <Card className="mb-4">
+        <CardHeader>
+          <div>
+            <CardTitle>
+              Trust posture{posture.overall !== null ? ` · ${posture.overall}/100` : ""}
+            </CardTitle>
+            <CardDescription>Are we secure, compliant, prepared, and able to prove it?</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {posture.pillars.map((p) => (
+            <div key={p.key}>
+              <div className="flex items-baseline justify-between text-sm">
+                <span className="font-medium" style={{ color: "var(--text)" }}>{p.label}</span>
+                <span style={{ color: "var(--text-muted)" }}>{p.score === null ? "No data" : p.score}</span>
+              </div>
+              <div className="mt-1.5 h-2 overflow-hidden rounded-full" style={{ background: "var(--bg-sunken)" }}>
+                <div
+                  className={`h-full rounded-full ${
+                    p.score === null ? "" : p.score >= 80 ? "bg-emerald-500" : p.score >= 50 ? "bg-amber-500" : "bg-red-500"
+                  }`}
+                  style={{ width: `${p.score ?? 0}%` }}
+                />
+              </div>
+              <p className="mt-1.5 text-xs" style={{ color: "var(--text-muted)" }}>{p.detail}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Open critical/high findings"
