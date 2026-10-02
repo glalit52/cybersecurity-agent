@@ -1,0 +1,9 @@
+{
+  // Duplicates the root deno.json import map so `supabase functions deploy`
+  // (which bundles each function dir in isolation, without the repo-root
+  // config) resolves bare specifiers. Keep the two in sync.
+  "imports": {
+    "@std/assert": "jsr:@std/assert@^1.0.0",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2"
+  }
+}

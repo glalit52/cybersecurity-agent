@@ -35,8 +35,13 @@ create table if not exists evidence_nodes (
 
 create index if not exists evidence_nodes_org_idx on evidence_nodes (organization_id);
 create index if not exists evidence_nodes_type_idx on evidence_nodes (organization_id, node_type);
-create index if not exists evidence_nodes_embedding_idx on evidence_nodes
-  using ivfflat (embedding vector_cosine_ops) with (lists = 100);
+-- NOTE: no vector index here on purpose. pgvector ivfflat/HNSW indexes
+-- support at most 2000 dimensions, but this MVP uses 3072-dimensional
+-- text-embedding-3-large embeddings (see vector(3072) above and the
+-- match_evidence_nodes RPC in 0002). Similarity search therefore runs as an
+-- exact scan (ORDER BY embedding <=> query), which is fine at MVP scale.
+-- ponytail: add an index if this outgrows brute force — either halve
+-- dimensions (halfvec) or reduce the embedding model dimension.
 
 create type evidence_relation_type as enum (
   'control_to_policy', 'policy_to_evidence', 'evidence_to_system',
