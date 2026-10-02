@@ -14,6 +14,20 @@ export async function createApprovalRequest(params: {
   requestedBy: string | null;
   eligibleApproverIds: string[];
 }): Promise<ApprovalRequest> {
+  // Re-submitting the same item must not create duplicate pending rows -
+  // return the live one instead. (App-level check; a partial unique index
+  // would be the race-proof version once concurrent approvers matter.)
+  const { data: existing } = await db()
+    .from("approval_requests")
+    .select("*")
+    .eq("organization_id", params.organizationId)
+    .eq("ref_type", params.refType)
+    .eq("ref_id", params.refId)
+    .in("status", ["pending", "locked"])
+    .limit(1)
+    .maybeSingle();
+  if (existing) return mapApprovalRow(existing);
+
   const { data, error } = await db()
     .from("approval_requests")
     .insert({
