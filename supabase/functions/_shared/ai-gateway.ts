@@ -29,7 +29,9 @@ function embeddingModel(): string {
 }
 
 function chatModel(): string {
-  return Deno.env.get("AI_GATEWAY_CHAT_MODEL") ?? "gpt-5";
+  // Drafting answers from provided evidence doesn't need a reasoning model:
+  // small, fast, cheap - override with AI_GATEWAY_CHAT_MODEL when it does.
+  return Deno.env.get("AI_GATEWAY_CHAT_MODEL") ?? "gpt-4o-mini";
 }
 
 function apiKey(): string {
@@ -88,7 +90,12 @@ export async function generateCompletion(req: CompletionRequest): Promise<string
           { role: "system", content: req.systemPrompt },
           { role: "user", content: req.userPrompt },
         ],
-        max_tokens: req.maxTokens ?? 800,
+        // max_completion_tokens works on both legacy and reasoning models;
+        // reasoning models (o-series, gpt-5) reject `max_tokens` with a 400.
+        // Ceiling, not a target: reasoning models spend the budget on
+        // reasoning tokens first, so a tight cap returns an empty message
+        // (billing is on tokens actually used anyway).
+        max_completion_tokens: Math.max((req.maxTokens ?? 800) * 8, 8000),
       }),
     });
   } catch (err) {
@@ -103,7 +110,9 @@ export async function generateCompletion(req: CompletionRequest): Promise<string
   }
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content;
-  if (typeof content !== "string") {
+  if (typeof content !== "string" || !content.trim()) {
+    // Empty content = reasoning budget exhausted or truncated response;
+    // treat as unavailable so callers fall back instead of saving blanks.
     throw new AiGatewayUnavailableError("Completion response did not contain message content.");
   }
   return content;
