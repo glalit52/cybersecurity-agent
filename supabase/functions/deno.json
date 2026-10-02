@@ -2,6 +2,9 @@
   // Duplicates the root deno.json import map so `supabase functions deploy`
   // (which bundles each function dir in isolation, without the repo-root
   // config) resolves bare specifiers. Keep the two in sync.
+  // Deno uses the nearest deno.json for fmt, so without this the root's
+  // lineWidth: 100 is ignored for everything under supabase/functions/.
+  "fmt": { "lineWidth": 100 },
   "imports": {
     "@std/assert": "jsr:@std/assert@^1.0.0",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2"
