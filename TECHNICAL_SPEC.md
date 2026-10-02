@@ -343,6 +343,23 @@ Anvita codebase. What's included now:
   an owner attestation, not a DevOps-style approve/reject action.
 - `.github/workflows/ci.yml` runs the same four checks on every push going
   forward, so this verified state doesn't silently rot as the code changes.
+- **Dashboard (`dashboard/`)**: a real Vite + React 19 + TypeScript frontend
+  covering every workflow above — findings, remediations, compliance
+  requests/questions, the 16-playbook catalog (run-on-demand), per-org
+  connector enablement, and approvals. Built, `tsc -b`-checked (strict,
+  `noUnusedLocals`/`noUnusedParameters`), `oxlint`-clean, and verified in an
+  actual browser (Playwright) in both light and dark mode across all 6
+  routes, including the three interactive write paths (approve/reject,
+  connector toggle, run playbook) — not just a static render. Runs
+  standalone with zero backend via seeded demo data + an in-memory Zustand
+  store (`isDemoMode` in `dashboard/src/lib/supabase.ts`); setting
+  `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` switches every data hook and
+  action to live Supabase + the new `dashboard-api` Edge Function with no
+  other code changes. That function is deliberately **not** on the
+  `INTERNAL_API_SECRET` boundary the other 5 functions use — it's
+  `verify_jwt = true` and authenticated with the signed-in user's own
+  Supabase session JWT, since it's called directly from a browser bundle
+  where the internal secret must never appear. See `dashboard/README.md`.
 
 ## 11. What we need from you to go live
 

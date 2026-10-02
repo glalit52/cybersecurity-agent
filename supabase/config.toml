@@ -55,3 +55,10 @@ verify_jwt = false
 
 [functions.playbook-scheduler]
 verify_jwt = false
+
+# dashboard-api is the one function the browser calls directly, so unlike
+# the five above it keeps the normal Supabase JWT verification (the
+# signed-in user's own session token, never INTERNAL_API_SECRET) — see
+# supabase/functions/dashboard-api/index.ts.
+[functions.dashboard-api]
+verify_jwt = true

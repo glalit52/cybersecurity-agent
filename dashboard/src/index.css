@@ -1,0 +1,137 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Brand / primary — deep trust-blue, enterprise-appropriate */
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dbe6fe;
+  --color-brand-200: #bfd3fe;
+  --color-brand-300: #93b6fd;
+  --color-brand-400: #608ffa;
+  --color-brand-500: #3b6af5;
+  --color-brand-600: #2548ea;
+  --color-brand-700: #1f38d6;
+  --color-brand-800: #212fad;
+  --color-brand-900: #202c89;
+  --color-brand-950: #161b54;
+
+  /* Severity scale — shared meaning across findings, gaps, priority.
+     Validated with the dataviz skill's palette validator (OKLab CVD-
+     simulated ΔE + lightness-band + contrast checks) against both chart
+     surfaces independently — light and dark are deliberately different
+     steps of each hue, not one palette auto-flipped. See --color-severity-*
+     dark overrides below. */
+  --color-severity-critical: #9f1239;
+  --color-severity-high: #eb6834;
+  --color-severity-medium: #dba800;
+  --color-severity-low: #2a78d6;
+
+  --color-success: #16a34a;
+  --color-warning: #dba800;
+  --color-danger: #9f1239;
+
+  --animate-in: fade-in 180ms ease-out;
+  --animate-pulse-slow: pulse-slow 2.4s ease-in-out infinite;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes pulse-slow {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+}
+
+:root {
+  --bg: #f7f8fb;
+  --bg-elevated: #ffffff;
+  --bg-sunken: #f0f2f7;
+  --border: #e4e7ee;
+  --border-strong: #d2d7e2;
+  --text: #15192b;
+  --text-muted: #5b6275;
+  --text-faint: #8a90a3;
+  --ring: #3b6af5;
+  --shadow-card: 0 1px 2px 0 rgb(21 25 43 / 0.04), 0 1px 1px 0 rgb(21 25 43 / 0.03);
+  --shadow-pop: 0 12px 32px -8px rgb(21 25 43 / 0.18), 0 4px 10px -4px rgb(21 25 43 / 0.08);
+}
+
+.dark {
+  --bg: #0c0e16;
+  --bg-elevated: #131626;
+  --bg-sunken: #0a0c14;
+  --border: #232739;
+  --border-strong: #323750;
+  --text: #eef0f8;
+  --text-muted: #9ca2b8;
+  --text-faint: #6a718a;
+  --ring: #608ffa;
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-pop: 0 20px 44px -12px rgb(0 0 0 / 0.6);
+
+  /* Dark-surface-specific severity steps (#0c0e16) — same hues, re-stepped
+     for the narrower dark lightness band, not an automatic light-mode flip. */
+  --color-severity-critical: #b6285b;
+  --color-severity-high: #e15f0a;
+  --color-severity-medium: #915f00;
+  --color-severity-low: #3987e5;
+  --color-warning: #915f00;
+  --color-danger: #b6285b;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-brand-500) 30%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}

@@ -81,7 +81,20 @@ bot/
 *.test.ts files sit next to the module they test (question-extraction.test.ts,
 document-extraction.test.ts, connectors/base.test.ts, frameworks.test.ts,
 playbooks/base.test.ts, internal-auth.test.ts) — standard Deno convention.
+
+dashboard/                          React + TypeScript frontend — see "Dashboard" below
+  supabase/functions/dashboard-api/ the dashboard's own Edge Function (browser-JWT auth,
+                                     not the INTERNAL_API_SECRET the other 5 functions use)
 ```
+
+## Dashboard
+
+`dashboard/` is a Vite + React + TypeScript dashboard covering every workflow above: findings,
+remediations, compliance requests, the 16-playbook catalog, connector enablement, and approvals.
+It runs standalone with zero backend configuration (seeded demo data + an in-memory store), and
+switches to live Supabase data by setting two env vars — see `dashboard/README.md` for setup,
+the demo/live-mode split, and the auth model (`supabase/functions/dashboard-api/index.ts` is
+authenticated with the signed-in user's own session JWT, unlike the other 5 functions below).
 
 ## What's real vs. stubbed right now
 
